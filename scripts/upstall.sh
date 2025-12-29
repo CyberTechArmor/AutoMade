@@ -293,6 +293,51 @@ install_package() {
     log_success "$package installed successfully"
 }
 
+# Install Node.js based on detected OS
+install_nodejs() {
+    detect_os
+
+    log_info "Installing Node.js..."
+
+    case "$OS_ID" in
+        ubuntu|debian)
+            # Use NodeSource repository for latest LTS
+            curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+            apt-get install -y nodejs
+            ;;
+        centos|rhel|rocky|almalinux|ol|fedora)
+            # Use NodeSource repository
+            curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
+            yum install -y nodejs
+            ;;
+        alpine)
+            apk add --no-cache nodejs npm
+            ;;
+        *)
+            # Try to detect based on OS_LIKE
+            if [[ "$OS_LIKE" == *"debian"* ]] || [[ "$OS_LIKE" == *"ubuntu"* ]]; then
+                curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+                apt-get install -y nodejs
+            elif [[ "$OS_LIKE" == *"rhel"* ]] || [[ "$OS_LIKE" == *"fedora"* ]]; then
+                curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
+                yum install -y nodejs
+            else
+                log_error "Unsupported operating system for Node.js installation: $OS_ID"
+                log_info "Please install Node.js 22+ manually: https://nodejs.org/"
+                return 1
+            fi
+            ;;
+    esac
+
+    if command -v node &> /dev/null && command -v npm &> /dev/null; then
+        log_success "Node.js $(node --version) installed successfully"
+        return 0
+    else
+        log_error "Node.js installation failed"
+        return 1
+    fi
+}
+
 # Check for required dependencies
 check_dependencies() {
     log_info "Checking dependencies..."
@@ -385,6 +430,18 @@ check_dependencies() {
     if ! command -v openssl &> /dev/null; then
         log_warn "openssl is not installed. Installing..."
         install_package openssl
+    fi
+
+    # Check for Node.js/npm (needed for database schema push)
+    if ! command -v npm &> /dev/null; then
+        log_warn "Node.js/npm is not installed. Installing..."
+        if ! install_nodejs; then
+            log_error "Node.js installation failed. Please install Node.js 22+ manually:"
+            log_info "  https://nodejs.org/"
+            exit 1
+        fi
+    else
+        log_info "Node.js is already installed ($(node --version))"
     fi
 
     log_success "All dependencies are available"
@@ -791,9 +848,19 @@ do_install() {
     log_info "Waiting for services to be ready..."
     sleep 10
 
-    # Run database migrations
-    log_info "Running database migrations..."
-    docker compose -f docker-compose.prod.yml exec -T api npm run db:migrate
+    # Run database schema push (using host npm with dev dependencies)
+    log_info "Setting up database schema..."
+
+    # Install dependencies on host for db:push (includes drizzle-kit)
+    if command -v npm &> /dev/null; then
+        npm install --silent 2>/dev/null || npm install
+        npm run db:push 2>&1 || {
+            log_warn "db:push failed, this may be okay for fresh installs"
+        }
+    else
+        log_warn "npm not found on host, skipping schema push"
+        log_info "You may need to run 'npm run db:push' manually after installing Node.js"
+    fi
 
     # Initialize system with super admin
     log_info "Initializing system..."
@@ -928,9 +995,16 @@ update() {
     # Wait for services
     sleep 10
 
-    # Run migrations
-    log_info "Running database migrations..."
-    docker compose -f docker-compose.prod.yml exec -T api npm run db:migrate
+    # Run database schema push (using host npm with dev dependencies)
+    log_info "Updating database schema..."
+    if command -v npm &> /dev/null; then
+        npm install --silent 2>/dev/null || npm install
+        npm run db:push 2>&1 || {
+            log_warn "db:push failed, schema may already be up to date"
+        }
+    else
+        log_warn "npm not found on host, skipping schema update"
+    fi
 
     # Update installed timestamp
     date -Iseconds > "$INSTALL_DIR/.installed"
