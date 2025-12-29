@@ -236,6 +236,13 @@ check_dependencies() {
     if ! command -v docker &> /dev/null; then
         log_warn "Docker is not installed. Installing..."
         install_docker
+
+        # Verify Docker was installed successfully
+        if ! command -v docker &> /dev/null; then
+            log_error "Docker installation failed. Please install Docker manually:"
+            log_info "  https://docs.docker.com/engine/install/"
+            exit 1
+        fi
     else
         log_info "Docker is already installed"
     fi
@@ -594,6 +601,19 @@ install() {
     create_traefik_config
     create_docker_compose
 
+    # Verify Docker is available before starting services
+    if ! command -v docker &> /dev/null; then
+        log_error "Docker is not installed. Cannot start services."
+        log_info "Please install Docker manually: https://docs.docker.com/engine/install/"
+        exit 1
+    fi
+
+    if ! docker info &> /dev/null; then
+        log_error "Docker daemon is not running. Cannot start services."
+        log_info "Try starting Docker with: systemctl start docker"
+        exit 1
+    fi
+
     # Start services
     log_info "Starting services..."
     docker compose -f docker-compose.prod.yml pull
@@ -681,6 +701,19 @@ update() {
 
     if [[ "$CURRENT_VERSION" == "$NEW_VERSION" ]]; then
         log_info "Already at the latest version"
+    fi
+
+    # Verify Docker is available before updating services
+    if ! command -v docker &> /dev/null; then
+        log_error "Docker is not installed. Cannot update services."
+        log_info "Please install Docker manually: https://docs.docker.com/engine/install/"
+        exit 1
+    fi
+
+    if ! docker info &> /dev/null; then
+        log_error "Docker daemon is not running. Cannot update services."
+        log_info "Try starting Docker with: systemctl start docker"
+        exit 1
     fi
 
     # Pull new Docker images
