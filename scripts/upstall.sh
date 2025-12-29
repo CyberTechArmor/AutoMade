@@ -629,52 +629,161 @@ EOF
     log_success "Environment file created"
 }
 
-# Create Traefik configuration with Let's Encrypt
-create_traefik_config() {
-    log_info "Creating Traefik configuration..."
+# Create Nginx configuration
+create_nginx_config() {
+    log_info "Creating Nginx configuration..."
 
-    mkdir -p "$INSTALL_DIR/traefik"
-    mkdir -p "$DATA_DIR/traefik/acme"
+    mkdir -p "$INSTALL_DIR/nginx/conf.d"
 
-    cat > "$INSTALL_DIR/traefik/traefik.yml" <<EOF
-# Traefik Static Configuration
-api:
-  dashboard: false
+    # Copy nginx.conf from repo if it exists, otherwise create it
+    if [[ ! -f "$INSTALL_DIR/nginx/nginx.conf" ]]; then
+        cat > "$INSTALL_DIR/nginx/nginx.conf" <<'EOF'
+user  nginx;
+worker_processes  auto;
 
-entryPoints:
-  web:
-    address: ":80"
-    http:
-      redirections:
-        entryPoint:
-          to: websecure
-          scheme: https
-  websecure:
-    address: ":443"
+error_log  /var/log/nginx/error.log notice;
+pid        /var/run/nginx.pid;
 
-providers:
-  docker:
-    endpoint: "unix:///var/run/docker.sock"
-    exposedByDefault: false
-    network: automade_network
+events {
+    worker_connections  1024;
+}
 
-certificatesResolvers:
-  letsencrypt:
-    acme:
-      email: ${ADMIN_EMAIL}
-      storage: /acme/acme.json
-      httpChallenge:
-        entryPoint: web
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
 
-log:
-  level: INFO
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile        on;
+    keepalive_timeout  65;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml application/javascript application/json;
+
+    include /etc/nginx/conf.d/*.conf;
+}
+EOF
+    fi
+
+    # Create initial HTTP-only config (for getting SSL certificate)
+    cat > "$INSTALL_DIR/nginx/conf.d/default.conf" <<EOF
+# Initial HTTP-only server for obtaining SSL certificate
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        proxy_pass http://api:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+    }
+}
 EOF
 
-    # Create empty acme.json with correct permissions
-    touch "$DATA_DIR/traefik/acme/acme.json"
-    chmod 600 "$DATA_DIR/traefik/acme/acme.json"
+    log_success "Nginx configuration created"
+}
 
-    log_success "Traefik configuration created"
+# Create HTTPS Nginx configuration (after SSL certificate is obtained)
+create_nginx_ssl_config() {
+    log_info "Creating Nginx SSL configuration..."
+
+    cat > "$INSTALL_DIR/nginx/conf.d/default.conf" <<EOF
+# HTTP server - redirects to HTTPS and handles ACME challenges
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+
+# HTTPS server
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${DOMAIN};
+
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:50m;
+    ssl_session_tickets off;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    location / {
+        proxy_pass http://api:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+}
+EOF
+
+    log_success "Nginx SSL configuration created"
+}
+
+# Obtain SSL certificate using certbot
+obtain_ssl_certificate() {
+    log_info "Obtaining SSL certificate from Let's Encrypt..."
+
+    # Run certbot to obtain certificate
+    docker compose -f docker-compose.prod.yml run --rm certbot certonly \
+        --webroot \
+        --webroot-path=/var/www/certbot \
+        --email "${ADMIN_EMAIL}" \
+        --agree-tos \
+        --no-eff-email \
+        -d "${DOMAIN}" 2>&1
+
+    if [[ $? -eq 0 ]]; then
+        log_success "SSL certificate obtained successfully"
+        return 0
+    else
+        log_warn "Failed to obtain SSL certificate. Site will run on HTTP only."
+        log_info "You can try again later with: docker compose -f docker-compose.prod.yml run --rm certbot certonly --webroot --webroot-path=/var/www/certbot --email ${ADMIN_EMAIL} --agree-tos --no-eff-email -d ${DOMAIN}"
+        return 1
+    fi
 }
 
 # Create production docker-compose.yml
@@ -682,21 +791,34 @@ create_docker_compose() {
     log_info "Creating Docker Compose configuration..."
 
     cat > "$INSTALL_DIR/docker-compose.prod.yml" <<EOF
-# AutoMade Production Docker Compose
+# AutoMade Production Docker Compose with Nginx + Let's Encrypt
 # Generated by upstall.sh
 
 services:
-  traefik:
-    image: traefik:v2.11
-    container_name: automade_traefik
+  nginx:
+    image: nginx:alpine
+    container_name: automade_nginx
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ${DATA_DIR}/traefik/acme:/acme
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - nginx_certs:/etc/letsencrypt:ro
+      - nginx_webroot:/var/www/certbot:ro
+    depends_on:
+      - api
+    networks:
+      - automade_network
+
+  certbot:
+    image: certbot/certbot
+    container_name: automade_certbot
+    volumes:
+      - nginx_certs:/etc/letsencrypt
+      - nginx_webroot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait \\\$\${!}; done;'"
     networks:
       - automade_network
 
@@ -717,12 +839,6 @@ services:
         condition: service_healthy
     volumes:
       - ${DATA_DIR}:/data/automade
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.api.rule=Host(\`${DOMAIN}\`)"
-      - "traefik.http.routers.api.entrypoints=websecure"
-      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
-      - "traefik.http.services.api.loadbalancer.server.port=3000"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
@@ -754,7 +870,7 @@ services:
     image: redis:7-alpine
     container_name: automade_redis
     restart: unless-stopped
-    command: redis-server --requirepass \${REDIS_PASSWORD}
+    command: redis-server --appendonly yes --requirepass \${REDIS_PASSWORD}
     volumes:
       - ${DATA_DIR}/redis:/data
     healthcheck:
@@ -764,6 +880,13 @@ services:
       retries: 5
     networks:
       - automade_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  nginx_certs:
+  nginx_webroot:
+  automade_data:
 
 networks:
   automade_network:
@@ -780,7 +903,7 @@ do_install() {
 
     # Create directories
     mkdir -p "$INSTALL_DIR"
-    mkdir -p "$DATA_DIR"/{postgres,redis,traefik/acme}
+    mkdir -p "$DATA_DIR"/{postgres,redis}
 
     # Clone repository
     if [[ -d "$INSTALL_DIR/.git" ]]; then
@@ -812,7 +935,7 @@ do_install() {
 
     # Create configuration files
     create_env_file
-    create_traefik_config
+    create_nginx_config
     create_docker_compose
 
     # Verify Docker is available before starting services
@@ -923,7 +1046,7 @@ do_install() {
                 -v "$INSTALL_DIR:/app" \
                 -w /app \
                 -e "DATABASE_URL=postgresql://automade:${POSTGRES_PASSWORD}@postgres:5432/automade" \
-                node:22-alpine sh -c "npm install --silent && npx drizzle-kit push" 2>&1 || {
+                node:22-alpine sh -c "npm install --silent && npx drizzle-kit push --force" 2>&1 || {
                     log_error "Database schema push failed. You may need to run it manually."
                     log_info "Try: cd $INSTALL_DIR && DATABASE_URL=... npm run db:push"
                 }
@@ -939,13 +1062,26 @@ do_install() {
             -v "$INSTALL_DIR:/app" \
             -w /app \
             -e "DATABASE_URL=postgresql://automade:${POSTGRES_PASSWORD}@postgres:5432/automade" \
-            node:22-alpine sh -c "npm install && npx drizzle-kit push" 2>&1 || {
+            node:22-alpine sh -c "npm install && npx drizzle-kit push --force" 2>&1 || {
                 log_error "Database schema push failed."
             }
     fi
 
     # Wait a moment for schema to be fully applied
     sleep 3
+
+    # Obtain SSL certificate
+    log_info "Obtaining SSL certificate..."
+    if obtain_ssl_certificate; then
+        # Certificate obtained, update nginx config for HTTPS
+        create_nginx_ssl_config
+        # Reload nginx with new SSL config
+        docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload 2>/dev/null || \
+            docker compose -f docker-compose.prod.yml restart nginx
+        log_success "HTTPS enabled with Let's Encrypt certificate"
+    else
+        log_warn "Running in HTTP-only mode. You can obtain a certificate later."
+    fi
 
     # Initialize system with super admin
     log_info "Initializing system..."
@@ -1059,7 +1195,7 @@ do_install() {
     log_success "AutoMade is now running!"
     echo ""
     log_info "If you see SSL certificate warnings, wait a few minutes for Let's Encrypt to issue the certificate."
-    log_info "Check Traefik logs: docker compose -f docker-compose.prod.yml logs traefik"
+    log_info "Check Nginx logs: docker compose -f docker-compose.prod.yml logs nginx"
 }
 
 # Update AutoMade
@@ -1081,9 +1217,9 @@ update() {
         cp .env "$BACKUP_DIR/"
     fi
 
-    # Save traefik config (has domain-specific ACME settings)
-    if [[ -d "traefik" ]]; then
-        cp -r traefik "$BACKUP_DIR/"
+    # Save nginx config (has domain-specific settings)
+    if [[ -d "nginx" ]]; then
+        cp -r nginx "$BACKUP_DIR/"
     fi
 
     # Reset local changes to allow clean pull
@@ -1102,8 +1238,8 @@ update() {
     if [[ -f "$BACKUP_DIR/.env" ]]; then
         cp "$BACKUP_DIR/.env" .env
     fi
-    if [[ -d "$BACKUP_DIR/traefik" ]]; then
-        cp -r "$BACKUP_DIR/traefik" .
+    if [[ -d "$BACKUP_DIR/nginx" ]]; then
+        cp -r "$BACKUP_DIR/nginx" .
     fi
 
     # Clean up backup
@@ -1220,7 +1356,7 @@ update() {
                 -v "$INSTALL_DIR:/app" \
                 -w /app \
                 -e "DATABASE_URL=postgresql://automade:${POSTGRES_PASSWORD}@postgres:5432/automade" \
-                node:22-alpine sh -c "npm install --silent && npx drizzle-kit push" 2>&1 || {
+                node:22-alpine sh -c "npm install --silent && npx drizzle-kit push --force" 2>&1 || {
                     log_warn "db:push failed, schema may already be up to date"
                 }
         }
@@ -1235,7 +1371,7 @@ update() {
             -v "$INSTALL_DIR:/app" \
             -w /app \
             -e "DATABASE_URL=postgresql://automade:${POSTGRES_PASSWORD}@postgres:5432/automade" \
-            node:22-alpine sh -c "npm install && npx drizzle-kit push" 2>&1 || {
+            node:22-alpine sh -c "npm install && npx drizzle-kit push --force" 2>&1 || {
                 log_warn "db:push failed, schema may already be up to date"
             }
     else
