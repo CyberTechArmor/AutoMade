@@ -83,7 +83,7 @@ detect_os() {
 install_docker_debian() {
     log_info "Installing Docker on Debian/Ubuntu..."
 
-    # Remove old versions
+    # Remove old versions (silently ignore if not installed)
     apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
 
     # Install prerequisites
@@ -94,9 +94,32 @@ install_docker_debian() {
         gnupg \
         lsb-release
 
-    # Add Docker's official GPG key
+    # Add Docker's official GPG key (with retry and better error handling)
     install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL "https://download.docker.com/linux/${OS_ID}/gpg" | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+    # Remove existing key to avoid GPG prompts
+    rm -f /etc/apt/keyrings/docker.gpg
+
+    # Download GPG key with retries
+    local retry_count=0
+    local max_retries=3
+    while [[ $retry_count -lt $max_retries ]]; do
+        if curl -fsSL "https://download.docker.com/linux/${OS_ID}/gpg" 2>/dev/null | gpg --dearmor -o /etc/apt/keyrings/docker.gpg 2>/dev/null; then
+            break
+        fi
+        retry_count=$((retry_count + 1))
+        if [[ $retry_count -lt $max_retries ]]; then
+            log_warn "Failed to download Docker GPG key, retrying ($retry_count/$max_retries)..."
+            sleep 2
+        fi
+    done
+
+    if [[ ! -f /etc/apt/keyrings/docker.gpg ]]; then
+        log_error "Failed to download Docker GPG key after $max_retries attempts"
+        log_info "Please check your network connection and try again"
+        return 1
+    fi
+
     chmod a+r /etc/apt/keyrings/docker.gpg
 
     # Set up the repository
@@ -107,11 +130,15 @@ install_docker_debian() {
 
     # Install Docker Engine
     apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    if ! apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
+        log_error "Failed to install Docker packages"
+        log_info "Try running: sudo apt-get update && sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
+        return 1
+    fi
 
     # Start and enable Docker
-    systemctl start docker
-    systemctl enable docker
+    systemctl start docker || true
+    systemctl enable docker || true
 
     log_success "Docker installed successfully"
 }
@@ -164,32 +191,36 @@ install_docker() {
 
     log_info "Detected OS: $OS_ID (like: $OS_LIKE)"
 
+    local install_result=0
+
     case "$OS_ID" in
         ubuntu|debian)
-            install_docker_debian
+            install_docker_debian || install_result=$?
             ;;
         centos|rhel|rocky|almalinux|ol)
-            install_docker_rhel
+            install_docker_rhel || install_result=$?
             ;;
         fedora)
-            install_docker_rhel
+            install_docker_rhel || install_result=$?
             ;;
         alpine)
-            install_docker_alpine
+            install_docker_alpine || install_result=$?
             ;;
         *)
             # Try to detect based on OS_LIKE
             if [[ "$OS_LIKE" == *"debian"* ]] || [[ "$OS_LIKE" == *"ubuntu"* ]]; then
-                install_docker_debian
+                install_docker_debian || install_result=$?
             elif [[ "$OS_LIKE" == *"rhel"* ]] || [[ "$OS_LIKE" == *"fedora"* ]] || [[ "$OS_LIKE" == *"centos"* ]]; then
-                install_docker_rhel
+                install_docker_rhel || install_result=$?
             else
                 log_error "Unsupported operating system: $OS_ID"
                 log_info "Please install Docker manually: https://docs.docker.com/engine/install/"
-                exit 1
+                return 1
             fi
             ;;
     esac
+
+    return $install_result
 }
 
 # Install common dependencies based on OS
@@ -235,15 +266,22 @@ check_dependencies() {
     # Check Docker
     if ! command -v docker &> /dev/null; then
         log_warn "Docker is not installed. Installing..."
-        install_docker
+        if ! install_docker; then
+            log_error "Docker installation failed. Please install Docker manually:"
+            log_info "  https://docs.docker.com/engine/install/"
+            log_info ""
+            log_info "After installing Docker, run this script again."
+            exit 1
+        fi
 
         # Verify Docker was installed successfully
         if ! command -v docker &> /dev/null; then
-            log_error "Docker installation failed. Please install Docker and Docker Compose manually:"
-            log_info "  https://docs.docker.com/engine/install/"
-            log_info "  https://docs.docker.com/compose/install/"
+            log_error "Docker installation completed but 'docker' command not found."
+            log_info "You may need to log out and back in, or run: newgrp docker"
+            log_info "Then run this script again."
             exit 1
         fi
+        log_success "Docker installed successfully"
     else
         log_info "Docker is already installed"
     fi
@@ -320,8 +358,43 @@ get_current_version() {
     fi
 }
 
+# Check if configuration already exists
+config_exists() {
+    [[ -f "$INSTALL_DIR/.env" ]] && [[ -f "$INSTALL_DIR/docker-compose.prod.yml" ]]
+}
+
+# Load existing configuration
+load_existing_config() {
+    if [[ -f "$INSTALL_DIR/.env" ]]; then
+        # shellcheck disable=SC1091
+        DOMAIN=$(grep '^DOMAIN=' "$INSTALL_DIR/.env" | cut -d'=' -f2)
+        ADMIN_EMAIL=$(grep '^ACME_EMAIL=' "$INSTALL_DIR/.env" | cut -d'=' -f2)
+        return 0
+    fi
+    return 1
+}
+
 # Prompt for setup information
 prompt_setup_info() {
+    # Check if configuration already exists
+    if config_exists; then
+        log_info "Existing configuration found"
+        if load_existing_config; then
+            log_info "  Domain: $DOMAIN"
+            log_info "  Admin Email: $ADMIN_EMAIL"
+            echo ""
+            read -rp "Use existing configuration? (Y/n): " USE_EXISTING < /dev/tty
+            if [[ ! "$USE_EXISTING" =~ ^[Nn]$ ]]; then
+                log_info "Using existing configuration"
+                return
+            fi
+            log_info "Reconfiguring..."
+            # Clear existing values to prompt for new ones
+            DOMAIN=""
+            ADMIN_EMAIL=""
+        fi
+    fi
+
     echo ""
     echo -e "${GREEN}========================================${NC}"
     echo -e "${GREEN}       AutoMade Installation Setup      ${NC}"
@@ -360,8 +433,24 @@ prompt_setup_info() {
     fi
 }
 
-# Generate secure secrets
+# Generate secure secrets (or load existing ones)
 generate_secrets() {
+    # If .env exists and we're using existing config, load secrets from it
+    if [[ -f "$INSTALL_DIR/.env" ]] && config_exists; then
+        log_info "Loading existing secrets from configuration..."
+        JWT_SECRET=$(grep '^JWT_SECRET=' "$INSTALL_DIR/.env" | cut -d'=' -f2-)
+        ENCRYPTION_KEY=$(grep '^ENCRYPTION_KEY=' "$INSTALL_DIR/.env" | cut -d'=' -f2-)
+        POSTGRES_PASSWORD=$(grep '^POSTGRES_PASSWORD=' "$INSTALL_DIR/.env" | cut -d'=' -f2-)
+        REDIS_PASSWORD=$(grep '^REDIS_PASSWORD=' "$INSTALL_DIR/.env" | cut -d'=' -f2-)
+
+        # Only regenerate if any secrets are missing
+        if [[ -n "$JWT_SECRET" && -n "$ENCRYPTION_KEY" && -n "$POSTGRES_PASSWORD" && -n "$REDIS_PASSWORD" ]]; then
+            log_success "Existing secrets loaded"
+            return
+        fi
+        log_warn "Some secrets missing, regenerating..."
+    fi
+
     log_info "Generating secure secrets..."
 
     JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n')
@@ -603,48 +692,36 @@ install() {
     create_docker_compose
 
     # Verify Docker is available before starting services
+    # Note: check_dependencies() should have already installed Docker,
+    # but we verify here in case the install() function is called directly
     if ! command -v docker &> /dev/null; then
-        log_warn "Docker is not installed. Attempting to install..."
-        install_docker
-        if ! command -v docker &> /dev/null; then
-            log_error "Docker installation failed. Please install Docker and Docker Compose manually:"
-            log_info "  https://docs.docker.com/engine/install/"
-            log_info "  https://docs.docker.com/compose/install/"
-            exit 1
-        fi
+        log_error "Docker is not installed. Please run check_dependencies first or install Docker manually:"
+        log_info "  https://docs.docker.com/engine/install/"
+        exit 1
     fi
 
     if ! docker info &> /dev/null; then
         log_warn "Docker daemon is not running. Attempting to start..."
         if command -v systemctl &> /dev/null; then
-            systemctl start docker
-            systemctl enable docker
+            systemctl start docker || true
+            systemctl enable docker || true
+            sleep 2
         elif command -v service &> /dev/null; then
-            service docker start
-        else
-            log_error "Could not start Docker daemon. Please start it manually."
+            service docker start || true
+            sleep 2
+        fi
+
+        # Verify Docker daemon started
+        if ! docker info &> /dev/null; then
+            log_error "Could not start Docker daemon. Please start it manually and run this script again."
             exit 1
         fi
     fi
 
     if ! docker compose version &> /dev/null; then
-        log_warn "Docker Compose is not installed. Attempting to install..."
-        if command -v apt-get &> /dev/null; then
-            apt-get update && apt-get install -y docker-compose-plugin
-        elif command -v yum &> /dev/null; then
-            yum install -y docker-compose-plugin
-        elif command -v apk &> /dev/null; then
-            apk add --no-cache docker-cli-compose
-        else
-            log_error "Could not install Docker Compose. Please install it manually:"
-            log_info "  https://docs.docker.com/compose/install/"
-            exit 1
-        fi
-        if ! docker compose version &> /dev/null; then
-            log_error "Docker Compose installation failed. Please install it manually:"
-            log_info "  https://docs.docker.com/compose/install/"
-            exit 1
-        fi
+        log_error "Docker Compose is not installed. Please install it manually:"
+        log_info "  https://docs.docker.com/compose/install/"
+        exit 1
     fi
 
     # Start services
