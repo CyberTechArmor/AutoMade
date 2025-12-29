@@ -53,6 +53,16 @@ app.use(requestLogger);
 // Trust proxy (for accurate IP addresses behind reverse proxy)
 app.set('trust proxy', true);
 
+// Root endpoint - API info
+app.get('/', (_req, res) => {
+  res.json({
+    name: 'AutoMade API',
+    version: process.env.npm_package_version || '0.1.0',
+    status: 'running',
+    docs: '/api/health',
+  });
+});
+
 // API routes
 app.use('/api', routes);
 

@@ -716,7 +716,7 @@ services:
       - "traefik.http.routers.api.tls.certresolver=letsencrypt"
       - "traefik.http.services.api.loadbalancer.server.port=3000"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -844,9 +844,29 @@ do_install() {
     docker compose -f docker-compose.prod.yml build --pull
     docker compose -f docker-compose.prod.yml up -d
 
-    # Wait for services to be ready
+    # Wait for services to be healthy
     log_info "Waiting for services to be ready..."
-    sleep 10
+    local max_wait=60
+    local waited=0
+    while [[ $waited -lt $max_wait ]]; do
+        if docker compose -f docker-compose.prod.yml ps --format json 2>/dev/null | grep -q '"Health":"healthy"' || \
+           docker compose -f docker-compose.prod.yml ps 2>/dev/null | grep -q "(healthy)"; then
+            # Check if postgres is specifically healthy
+            if docker exec automade_postgres pg_isready -U automade &>/dev/null; then
+                log_success "Database is ready"
+                break
+            fi
+        fi
+        sleep 2
+        waited=$((waited + 2))
+        if [[ $((waited % 10)) -eq 0 ]]; then
+            log_info "Still waiting for services... ($waited seconds)"
+        fi
+    done
+
+    if [[ $waited -ge $max_wait ]]; then
+        log_warn "Services took longer than expected to start. Continuing anyway..."
+    fi
 
     # Run database schema push (using host npm with dev dependencies)
     log_info "Setting up database schema..."
@@ -854,16 +874,87 @@ do_install() {
     # Install dependencies on host for db:push (includes drizzle-kit)
     if command -v npm &> /dev/null; then
         npm install --silent 2>/dev/null || npm install
-        npm run db:push 2>&1 || {
-            log_warn "db:push failed, this may be okay for fresh installs"
+
+        # Use localhost to connect to postgres from host
+        # Get the postgres port (use docker inspect to find the mapped port, or default to internal connection)
+        local DB_HOST="localhost"
+        local DB_PORT="5432"
+
+        # Check if postgres port is exposed to host
+        local MAPPED_PORT=$(docker port automade_postgres 5432 2>/dev/null | cut -d: -f2 | head -1)
+        if [[ -n "$MAPPED_PORT" ]]; then
+            DB_PORT="$MAPPED_PORT"
+            log_info "Using exposed postgres port: $DB_PORT"
+        else
+            # Postgres is not exposed, we need to use docker network
+            # Get the postgres container IP
+            DB_HOST=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' automade_postgres 2>/dev/null || echo "")
+            if [[ -z "$DB_HOST" ]]; then
+                log_warn "Could not determine postgres IP, trying direct container access..."
+                DB_HOST="postgres"
+            fi
+        fi
+
+        # Run db:push with the correct database URL
+        log_info "Pushing database schema (host: $DB_HOST:$DB_PORT)..."
+        DATABASE_URL="postgresql://automade:${POSTGRES_PASSWORD}@${DB_HOST}:${DB_PORT}/automade" npm run db:push 2>&1 || {
+            log_warn "db:push with host connection failed, trying via docker network..."
+            # Fallback: try to run drizzle-kit inside a temporary container
+            # Docker Compose prefixes network name with project name (directory name)
+            local NETWORK_NAME=$(docker network ls --format '{{.Name}}' | grep -E 'automade.*network' | head -1)
+            if [[ -z "$NETWORK_NAME" ]]; then
+                NETWORK_NAME="automade_automade_network"
+            fi
+            docker run --rm --network "$NETWORK_NAME" \
+                -v "$INSTALL_DIR:/app" \
+                -w /app \
+                -e "DATABASE_URL=postgresql://automade:${POSTGRES_PASSWORD}@postgres:5432/automade" \
+                node:22-alpine sh -c "npm install --silent && npx drizzle-kit push" 2>&1 || {
+                    log_error "Database schema push failed. You may need to run it manually."
+                    log_info "Try: cd $INSTALL_DIR && DATABASE_URL=... npm run db:push"
+                }
         }
     else
-        log_warn "npm not found on host, skipping schema push"
-        log_info "You may need to run 'npm run db:push' manually after installing Node.js"
+        log_warn "npm not found on host, running db:push via Docker..."
+        # Docker Compose prefixes network name with project name (directory name)
+        local NETWORK_NAME=$(docker network ls --format '{{.Name}}' | grep -E 'automade.*network' | head -1)
+        if [[ -z "$NETWORK_NAME" ]]; then
+            NETWORK_NAME="automade_automade_network"
+        fi
+        docker run --rm --network "$NETWORK_NAME" \
+            -v "$INSTALL_DIR:/app" \
+            -w /app \
+            -e "DATABASE_URL=postgresql://automade:${POSTGRES_PASSWORD}@postgres:5432/automade" \
+            node:22-alpine sh -c "npm install && npx drizzle-kit push" 2>&1 || {
+                log_error "Database schema push failed."
+            }
     fi
+
+    # Wait a moment for schema to be fully applied
+    sleep 3
 
     # Initialize system with super admin
     log_info "Initializing system..."
+
+    # Wait for API to be healthy before initializing
+    log_info "Waiting for API to be healthy..."
+    local api_ready=false
+    for i in {1..30}; do
+        if docker exec automade_api wget -q --spider http://localhost:3000/api/health 2>/dev/null; then
+            api_ready=true
+            log_success "API is ready"
+            break
+        fi
+        if [[ $((i % 5)) -eq 0 ]]; then
+            log_info "Still waiting for API... ($((i * 2)) seconds)"
+        fi
+        sleep 2
+    done
+
+    if [[ "$api_ready" != "true" ]]; then
+        log_warn "API health check failed, attempting initialization anyway..."
+    fi
+
     SETUP_RESULT=$(docker compose -f docker-compose.prod.yml exec -T api \
         node -e "
             import('./dist/lib/setup.js').then(async (setup) => {
@@ -878,7 +969,13 @@ do_install() {
                     process.exit(1);
                 }
             });
-        " 2>/dev/null) || true
+        " 2>&1) || true
+
+    # Clean up the result - remove any non-JSON output
+    if [[ -n "$SETUP_RESULT" ]]; then
+        # Extract only the JSON part (last line that starts with {)
+        SETUP_RESULT=$(echo "$SETUP_RESULT" | grep -E '^\{.*\}$' | tail -1)
+    fi
 
     # Mark as installed
     date -Iseconds > "$INSTALL_DIR/.installed"
@@ -909,11 +1006,33 @@ do_install() {
         echo ""
         echo -e "${RED}These credentials will NOT be shown again!${NC}"
     else
-        log_warn "Could not retrieve credentials. Check the logs."
+        log_warn "Could not retrieve credentials automatically."
+        echo ""
+        echo -e "${YELLOW}To generate credentials manually, run:${NC}"
+        echo ""
+        echo "  cd $INSTALL_DIR"
+        echo "  docker compose -f docker-compose.prod.yml exec api node -e \"\\"
+        echo "    import('./dist/lib/setup.js').then(async (s) => {"
+        echo "      const r = await s.initializeSystem({domain:'${DOMAIN}',adminEmail:'${ADMIN_EMAIL}'});"
+        echo "      console.log('Password:', r.credentials.password);"
+        echo "      console.log('TOTP Secret:', r.credentials.totpSecret);"
+        echo "      console.log('Backup Codes:', r.credentials.backupCodes.join(', '));"
+        echo "    });\""
+        echo ""
+        # Check if there was an error message
+        if [[ -n "$SETUP_RESULT" ]] && echo "$SETUP_RESULT" | jq -e '.error' &>/dev/null; then
+            local ERROR_MSG=$(echo "$SETUP_RESULT" | jq -r '.error')
+            log_error "Setup error: $ERROR_MSG"
+        fi
+        echo ""
+        log_info "Check API logs: docker compose -f docker-compose.prod.yml logs api"
     fi
 
     echo ""
     log_success "AutoMade is now running!"
+    echo ""
+    log_info "If you see SSL certificate warnings, wait a few minutes for Let's Encrypt to issue the certificate."
+    log_info "Check Traefik logs: docker compose -f docker-compose.prod.yml logs traefik"
 }
 
 # Update AutoMade
@@ -992,18 +1111,71 @@ update() {
     docker compose -f docker-compose.prod.yml build --pull
     docker compose -f docker-compose.prod.yml up -d
 
-    # Wait for services
-    sleep 10
+    # Wait for services to be healthy
+    log_info "Waiting for services to be ready..."
+    local max_wait=60
+    local waited=0
+    while [[ $waited -lt $max_wait ]]; do
+        if docker exec automade_postgres pg_isready -U automade &>/dev/null; then
+            log_success "Database is ready"
+            break
+        fi
+        sleep 2
+        waited=$((waited + 2))
+        if [[ $((waited % 10)) -eq 0 ]]; then
+            log_info "Still waiting for services... ($waited seconds)"
+        fi
+    done
+
+    # Load POSTGRES_PASSWORD from existing .env
+    local POSTGRES_PASSWORD=""
+    if [[ -f "$INSTALL_DIR/.env" ]]; then
+        POSTGRES_PASSWORD=$(grep '^POSTGRES_PASSWORD=' "$INSTALL_DIR/.env" | cut -d'=' -f2-)
+    fi
 
     # Run database schema push (using host npm with dev dependencies)
     log_info "Updating database schema..."
-    if command -v npm &> /dev/null; then
+    if command -v npm &> /dev/null && [[ -n "$POSTGRES_PASSWORD" ]]; then
         npm install --silent 2>/dev/null || npm install
-        npm run db:push 2>&1 || {
-            log_warn "db:push failed, schema may already be up to date"
+
+        # Get postgres container IP for connection from host
+        local DB_HOST=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' automade_postgres 2>/dev/null || echo "")
+        if [[ -z "$DB_HOST" ]]; then
+            DB_HOST="postgres"
+        fi
+
+        log_info "Pushing database schema (host: $DB_HOST)..."
+        DATABASE_URL="postgresql://automade:${POSTGRES_PASSWORD}@${DB_HOST}:5432/automade" npm run db:push 2>&1 || {
+            log_warn "db:push with host connection failed, trying via docker network..."
+            # Docker Compose prefixes network name with project name
+            local NETWORK_NAME=$(docker network ls --format '{{.Name}}' | grep -E 'automade.*network' | head -1)
+            if [[ -z "$NETWORK_NAME" ]]; then
+                NETWORK_NAME="automade_automade_network"
+            fi
+            docker run --rm --network "$NETWORK_NAME" \
+                -v "$INSTALL_DIR:/app" \
+                -w /app \
+                -e "DATABASE_URL=postgresql://automade:${POSTGRES_PASSWORD}@postgres:5432/automade" \
+                node:22-alpine sh -c "npm install --silent && npx drizzle-kit push" 2>&1 || {
+                    log_warn "db:push failed, schema may already be up to date"
+                }
         }
+    elif [[ -n "$POSTGRES_PASSWORD" ]]; then
+        log_warn "npm not found on host, running db:push via Docker..."
+        # Docker Compose prefixes network name with project name
+        local NETWORK_NAME=$(docker network ls --format '{{.Name}}' | grep -E 'automade.*network' | head -1)
+        if [[ -z "$NETWORK_NAME" ]]; then
+            NETWORK_NAME="automade_automade_network"
+        fi
+        docker run --rm --network "$NETWORK_NAME" \
+            -v "$INSTALL_DIR:/app" \
+            -w /app \
+            -e "DATABASE_URL=postgresql://automade:${POSTGRES_PASSWORD}@postgres:5432/automade" \
+            node:22-alpine sh -c "npm install && npx drizzle-kit push" 2>&1 || {
+                log_warn "db:push failed, schema may already be up to date"
+            }
     else
-        log_warn "npm not found on host, skipping schema update"
+        log_warn "Could not read POSTGRES_PASSWORD from .env, skipping schema update"
     fi
 
     # Update installed timestamp
