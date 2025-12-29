@@ -1071,17 +1071,17 @@ update() {
     CURRENT_VERSION=$(get_current_version)
     log_info "Current version: $CURRENT_VERSION"
 
-    # Back up generated files that may conflict with repo
+    # Back up .env (contains secrets and domain config)
     log_info "Backing up local configuration..."
     local BACKUP_DIR="/tmp/automade_backup_$$"
     mkdir -p "$BACKUP_DIR"
 
-    # Save the generated docker-compose.prod.yml (has domain-specific config)
-    if [[ -f "docker-compose.prod.yml" ]]; then
-        cp docker-compose.prod.yml "$BACKUP_DIR/"
+    # Save .env file (has secrets and domain-specific config)
+    if [[ -f ".env" ]]; then
+        cp .env "$BACKUP_DIR/"
     fi
 
-    # Save traefik config
+    # Save traefik config (has domain-specific ACME settings)
     if [[ -d "traefik" ]]; then
         cp -r traefik "$BACKUP_DIR/"
     fi
@@ -1097,10 +1097,10 @@ update() {
     git checkout "$BRANCH"
     git pull origin "$BRANCH"
 
-    # Restore backed up generated files
+    # Restore backed up configuration files
     log_info "Restoring local configuration..."
-    if [[ -f "$BACKUP_DIR/docker-compose.prod.yml" ]]; then
-        cp "$BACKUP_DIR/docker-compose.prod.yml" docker-compose.prod.yml
+    if [[ -f "$BACKUP_DIR/.env" ]]; then
+        cp "$BACKUP_DIR/.env" .env
     fi
     if [[ -d "$BACKUP_DIR/traefik" ]]; then
         cp -r "$BACKUP_DIR/traefik" .
