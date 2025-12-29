@@ -236,6 +236,14 @@ check_dependencies() {
     if ! command -v docker &> /dev/null; then
         log_warn "Docker is not installed. Installing..."
         install_docker
+
+        # Verify Docker was installed successfully
+        if ! command -v docker &> /dev/null; then
+            log_error "Docker installation failed. Please install Docker and Docker Compose manually:"
+            log_info "  https://docs.docker.com/engine/install/"
+            log_info "  https://docs.docker.com/compose/install/"
+            exit 1
+        fi
     else
         log_info "Docker is already installed"
     fi
@@ -594,6 +602,51 @@ install() {
     create_traefik_config
     create_docker_compose
 
+    # Verify Docker is available before starting services
+    if ! command -v docker &> /dev/null; then
+        log_warn "Docker is not installed. Attempting to install..."
+        install_docker
+        if ! command -v docker &> /dev/null; then
+            log_error "Docker installation failed. Please install Docker and Docker Compose manually:"
+            log_info "  https://docs.docker.com/engine/install/"
+            log_info "  https://docs.docker.com/compose/install/"
+            exit 1
+        fi
+    fi
+
+    if ! docker info &> /dev/null; then
+        log_warn "Docker daemon is not running. Attempting to start..."
+        if command -v systemctl &> /dev/null; then
+            systemctl start docker
+            systemctl enable docker
+        elif command -v service &> /dev/null; then
+            service docker start
+        else
+            log_error "Could not start Docker daemon. Please start it manually."
+            exit 1
+        fi
+    fi
+
+    if ! docker compose version &> /dev/null; then
+        log_warn "Docker Compose is not installed. Attempting to install..."
+        if command -v apt-get &> /dev/null; then
+            apt-get update && apt-get install -y docker-compose-plugin
+        elif command -v yum &> /dev/null; then
+            yum install -y docker-compose-plugin
+        elif command -v apk &> /dev/null; then
+            apk add --no-cache docker-cli-compose
+        else
+            log_error "Could not install Docker Compose. Please install it manually:"
+            log_info "  https://docs.docker.com/compose/install/"
+            exit 1
+        fi
+        if ! docker compose version &> /dev/null; then
+            log_error "Docker Compose installation failed. Please install it manually:"
+            log_info "  https://docs.docker.com/compose/install/"
+            exit 1
+        fi
+    fi
+
     # Start services
     log_info "Starting services..."
     docker compose -f docker-compose.prod.yml pull
@@ -681,6 +734,51 @@ update() {
 
     if [[ "$CURRENT_VERSION" == "$NEW_VERSION" ]]; then
         log_info "Already at the latest version"
+    fi
+
+    # Verify Docker is available before updating services
+    if ! command -v docker &> /dev/null; then
+        log_warn "Docker is not installed. Attempting to install..."
+        install_docker
+        if ! command -v docker &> /dev/null; then
+            log_error "Docker installation failed. Please install Docker and Docker Compose manually:"
+            log_info "  https://docs.docker.com/engine/install/"
+            log_info "  https://docs.docker.com/compose/install/"
+            exit 1
+        fi
+    fi
+
+    if ! docker info &> /dev/null; then
+        log_warn "Docker daemon is not running. Attempting to start..."
+        if command -v systemctl &> /dev/null; then
+            systemctl start docker
+            systemctl enable docker
+        elif command -v service &> /dev/null; then
+            service docker start
+        else
+            log_error "Could not start Docker daemon. Please start it manually."
+            exit 1
+        fi
+    fi
+
+    if ! docker compose version &> /dev/null; then
+        log_warn "Docker Compose is not installed. Attempting to install..."
+        if command -v apt-get &> /dev/null; then
+            apt-get update && apt-get install -y docker-compose-plugin
+        elif command -v yum &> /dev/null; then
+            yum install -y docker-compose-plugin
+        elif command -v apk &> /dev/null; then
+            apk add --no-cache docker-cli-compose
+        else
+            log_error "Could not install Docker Compose. Please install it manually:"
+            log_info "  https://docs.docker.com/compose/install/"
+            exit 1
+        fi
+        if ! docker compose version &> /dev/null; then
+            log_error "Docker Compose installation failed. Please install it manually:"
+            log_info "  https://docs.docker.com/compose/install/"
+            exit 1
+        fi
     fi
 
     # Pull new Docker images
