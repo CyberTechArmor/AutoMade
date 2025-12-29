@@ -7,7 +7,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/CyberTechArmor/AutoMade/main/scripts/upstall.sh | sudo bash
 #
 # Or download and run:
-#   ./upstall.sh [install|update|status|uninstall|help]
+#   ./upstall.sh [install|restart|update|reinstall|uninstall|status|help]
 #
 # Dependencies (auto-installed if missing):
 # - Docker and Docker Compose
@@ -30,6 +30,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Configuration
@@ -37,6 +38,7 @@ INSTALL_DIR="${AUTOMADE_INSTALL_DIR:-/opt/automade}"
 DATA_DIR="${AUTOMADE_DATA_DIR:-/data/automade}"
 REPO_URL="${AUTOMADE_REPO_URL:-https://github.com/CyberTechArmor/AutoMade}"
 BRANCH="${AUTOMADE_BRANCH:-main}"
+CERT_BACKUP_DIR="${AUTOMADE_CERT_BACKUP:-/tmp/automade_cert_backup}"
 
 # Track if we've already re-executed from the repo
 UPSTALL_FROM_REPO="${UPSTALL_FROM_REPO:-false}"
@@ -216,7 +218,6 @@ install_docker() {
     log_info "Detected OS: $OS_ID (like: $OS_LIKE)"
 
     # Call the appropriate install function and capture result
-    # Using explicit if/then to properly capture return values
     case "$OS_ID" in
         ubuntu|debian)
             if install_docker_debian; then
@@ -684,8 +685,22 @@ server {
         root /var/www/certbot;
     }
 
-    location / {
+    # Proxy API requests
+    location /api {
         proxy_pass http://api:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+    }
+
+    # Proxy frontend requests
+    location / {
+        proxy_pass http://frontend:80;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -744,7 +759,8 @@ server {
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-    location / {
+    # Proxy API requests
+    location /api {
         proxy_pass http://api:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -757,10 +773,73 @@ server {
         proxy_read_timeout 86400s;
         proxy_send_timeout 86400s;
     }
+
+    # Proxy frontend requests
+    location / {
+        proxy_pass http://frontend:80;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+    }
 }
 EOF
 
     log_success "Nginx SSL configuration created"
+}
+
+# Backup SSL certificates
+backup_certificates() {
+    log_info "Backing up SSL certificates..."
+
+    mkdir -p "$CERT_BACKUP_DIR"
+
+    # Get certificate volume name
+    local CERT_VOLUME=$(docker volume ls --format '{{.Name}}' | grep -E 'nginx_certs|automade.*certs' | head -1)
+
+    if [[ -n "$CERT_VOLUME" ]]; then
+        # Copy certificates from volume to backup directory
+        docker run --rm -v "$CERT_VOLUME:/certs:ro" -v "$CERT_BACKUP_DIR:/backup" alpine \
+            sh -c "cp -a /certs/. /backup/" 2>/dev/null || true
+
+        if [[ -d "$CERT_BACKUP_DIR/live" ]]; then
+            log_success "SSL certificates backed up to $CERT_BACKUP_DIR"
+            return 0
+        fi
+    fi
+
+    log_warn "No SSL certificates found to backup"
+    return 1
+}
+
+# Restore SSL certificates
+restore_certificates() {
+    if [[ ! -d "$CERT_BACKUP_DIR/live" ]]; then
+        log_warn "No certificate backup found at $CERT_BACKUP_DIR"
+        return 1
+    fi
+
+    log_info "Restoring SSL certificates..."
+
+    # Get certificate volume name
+    local CERT_VOLUME=$(docker volume ls --format '{{.Name}}' | grep -E 'nginx_certs|automade.*certs' | head -1)
+
+    if [[ -z "$CERT_VOLUME" ]]; then
+        # Create the volume if it doesn't exist
+        CERT_VOLUME="automade_nginx_certs"
+        docker volume create "$CERT_VOLUME" >/dev/null
+    fi
+
+    # Copy certificates from backup to volume
+    docker run --rm -v "$CERT_VOLUME:/certs" -v "$CERT_BACKUP_DIR:/backup:ro" alpine \
+        sh -c "cp -a /backup/. /certs/" 2>/dev/null
+
+    log_success "SSL certificates restored"
+    return 0
 }
 
 # Obtain SSL certificate using certbot
@@ -807,6 +886,18 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - nginx_certs:/etc/letsencrypt:ro
       - nginx_webroot:/var/www/certbot:ro
+    depends_on:
+      - api
+      - frontend
+    networks:
+      - automade_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: automade_frontend
+    restart: unless-stopped
     depends_on:
       - api
     networks:
@@ -920,7 +1011,6 @@ do_install() {
     cd "$INSTALL_DIR"
 
     # Re-execute from the repo version if we haven't already
-    # This ensures we run the latest version of the script after updating
     if [[ "$UPSTALL_FROM_REPO" != "true" ]] && [[ -f "$INSTALL_DIR/scripts/upstall.sh" ]]; then
         log_info "Running updated script from repository..."
         export UPSTALL_FROM_REPO=true
@@ -939,8 +1029,6 @@ do_install() {
     create_docker_compose
 
     # Verify Docker is available before starting services
-    # Note: check_dependencies() should have already installed Docker,
-    # but we verify here in case the install() function is called directly
     if ! command -v docker &> /dev/null; then
         log_error "Docker is not installed. Please run check_dependencies first or install Docker manually:"
         log_info "  https://docs.docker.com/engine/install/"
@@ -958,7 +1046,6 @@ do_install() {
             sleep 2
         fi
 
-        # Verify Docker daemon started
         if ! docker info &> /dev/null; then
             log_error "Could not start Docker daemon. Please start it manually and run this script again."
             exit 1
@@ -988,7 +1075,6 @@ do_install() {
     while [[ $waited -lt $max_wait ]]; do
         if docker compose -f docker-compose.prod.yml ps --format json 2>/dev/null | grep -q '"Health":"healthy"' || \
            docker compose -f docker-compose.prod.yml ps 2>/dev/null | grep -q "(healthy)"; then
-            # Check if postgres is specifically healthy
             if docker exec automade_postgres pg_isready -U automade &>/dev/null; then
                 log_success "Database is ready"
                 break
@@ -1005,67 +1091,9 @@ do_install() {
         log_warn "Services took longer than expected to start. Continuing anyway..."
     fi
 
-    # Run database schema push (using host npm with dev dependencies)
+    # Run database schema push
     log_info "Setting up database schema..."
-
-    # Install dependencies on host for db:push (includes drizzle-kit)
-    if command -v npm &> /dev/null; then
-        npm install --silent 2>/dev/null || npm install
-
-        # Use localhost to connect to postgres from host
-        # Get the postgres port (use docker inspect to find the mapped port, or default to internal connection)
-        local DB_HOST="localhost"
-        local DB_PORT="5432"
-
-        # Check if postgres port is exposed to host
-        local MAPPED_PORT=$(docker port automade_postgres 5432 2>/dev/null | cut -d: -f2 | head -1)
-        if [[ -n "$MAPPED_PORT" ]]; then
-            DB_PORT="$MAPPED_PORT"
-            log_info "Using exposed postgres port: $DB_PORT"
-        else
-            # Postgres is not exposed, we need to use docker network
-            # Get the postgres container IP
-            DB_HOST=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' automade_postgres 2>/dev/null || echo "")
-            if [[ -z "$DB_HOST" ]]; then
-                log_warn "Could not determine postgres IP, trying direct container access..."
-                DB_HOST="postgres"
-            fi
-        fi
-
-        # Run db:push with the correct database URL
-        log_info "Pushing database schema (host: $DB_HOST:$DB_PORT)..."
-        DATABASE_URL="postgresql://automade:${POSTGRES_PASSWORD}@${DB_HOST}:${DB_PORT}/automade" npm run db:push 2>&1 || {
-            log_warn "db:push with host connection failed, trying via docker network..."
-            # Fallback: try to run drizzle-kit inside a temporary container
-            # Docker Compose prefixes network name with project name (directory name)
-            local NETWORK_NAME=$(docker network ls --format '{{.Name}}' | grep -E 'automade.*network' | head -1)
-            if [[ -z "$NETWORK_NAME" ]]; then
-                NETWORK_NAME="automade_automade_network"
-            fi
-            docker run --rm --network "$NETWORK_NAME" \
-                -v "$INSTALL_DIR:/app" \
-                -w /app \
-                -e "DATABASE_URL=postgresql://automade:${POSTGRES_PASSWORD}@postgres:5432/automade" \
-                node:22-alpine sh -c "npm install --silent && npx drizzle-kit push --force" 2>&1 || {
-                    log_error "Database schema push failed. You may need to run it manually."
-                    log_info "Try: cd $INSTALL_DIR && DATABASE_URL=... npm run db:push"
-                }
-        }
-    else
-        log_warn "npm not found on host, running db:push via Docker..."
-        # Docker Compose prefixes network name with project name (directory name)
-        local NETWORK_NAME=$(docker network ls --format '{{.Name}}' | grep -E 'automade.*network' | head -1)
-        if [[ -z "$NETWORK_NAME" ]]; then
-            NETWORK_NAME="automade_automade_network"
-        fi
-        docker run --rm --network "$NETWORK_NAME" \
-            -v "$INSTALL_DIR:/app" \
-            -w /app \
-            -e "DATABASE_URL=postgresql://automade:${POSTGRES_PASSWORD}@postgres:5432/automade" \
-            node:22-alpine sh -c "npm install && npx drizzle-kit push --force" 2>&1 || {
-                log_error "Database schema push failed."
-            }
-    fi
+    run_db_push
 
     # Wait a moment for schema to be fully applied
     sleep 3
@@ -1073,9 +1101,7 @@ do_install() {
     # Obtain SSL certificate
     log_info "Obtaining SSL certificate..."
     if obtain_ssl_certificate; then
-        # Certificate obtained, update nginx config for HTTPS
         create_nginx_ssl_config
-        # Reload nginx with new SSL config
         docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload 2>/dev/null || \
             docker compose -f docker-compose.prod.yml restart nginx
         log_success "HTTPS enabled with Let's Encrypt certificate"
@@ -1084,9 +1110,74 @@ do_install() {
     fi
 
     # Initialize system with super admin
+    initialize_system
+
+    # Mark as installed
+    date -Iseconds > "$INSTALL_DIR/.installed"
+
+    show_completion_message
+}
+
+# Run database schema push
+run_db_push() {
+    local POSTGRES_PASSWORD=""
+    if [[ -f "$INSTALL_DIR/.env" ]]; then
+        POSTGRES_PASSWORD=$(grep '^POSTGRES_PASSWORD=' "$INSTALL_DIR/.env" | cut -d'=' -f2-)
+    fi
+
+    if [[ -z "$POSTGRES_PASSWORD" ]]; then
+        log_warn "Could not read POSTGRES_PASSWORD from .env, skipping schema update"
+        return 1
+    fi
+
+    if command -v npm &> /dev/null; then
+        npm install --silent 2>/dev/null || npm install
+
+        local DB_HOST="localhost"
+        local DB_PORT="5432"
+
+        local MAPPED_PORT=$(docker port automade_postgres 5432 2>/dev/null | cut -d: -f2 | head -1)
+        if [[ -n "$MAPPED_PORT" ]]; then
+            DB_PORT="$MAPPED_PORT"
+            log_info "Using exposed postgres port: $DB_PORT"
+        else
+            DB_HOST=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' automade_postgres 2>/dev/null || echo "")
+            if [[ -z "$DB_HOST" ]]; then
+                DB_HOST="postgres"
+            fi
+        fi
+
+        log_info "Pushing database schema (host: $DB_HOST:$DB_PORT)..."
+        DATABASE_URL="postgresql://automade:${POSTGRES_PASSWORD}@${DB_HOST}:${DB_PORT}/automade" npm run db:push 2>&1 || {
+            log_warn "db:push with host connection failed, trying via docker network..."
+            run_db_push_docker "$POSTGRES_PASSWORD"
+        }
+    else
+        log_warn "npm not found on host, running db:push via Docker..."
+        run_db_push_docker "$POSTGRES_PASSWORD"
+    fi
+}
+
+# Run db:push via Docker
+run_db_push_docker() {
+    local POSTGRES_PASSWORD="$1"
+    local NETWORK_NAME=$(docker network ls --format '{{.Name}}' | grep -E 'automade.*network' | head -1)
+    if [[ -z "$NETWORK_NAME" ]]; then
+        NETWORK_NAME="automade_automade_network"
+    fi
+    docker run --rm --network "$NETWORK_NAME" \
+        -v "$INSTALL_DIR:/app" \
+        -w /app \
+        -e "DATABASE_URL=postgresql://automade:${POSTGRES_PASSWORD}@postgres:5432/automade" \
+        node:22-alpine sh -c "npm install --silent && npx drizzle-kit push --force" 2>&1 || {
+            log_warn "db:push failed, schema may already be up to date"
+        }
+}
+
+# Initialize system with super admin
+initialize_system() {
     log_info "Initializing system..."
 
-    # Wait for API to be healthy before initializing
     log_info "Waiting for API to be healthy..."
     local api_ready=false
     for i in {1..30}; do
@@ -1121,16 +1212,13 @@ do_install() {
             });
         " 2>&1) || true
 
-    # Clean up the result - remove any non-JSON output
     if [[ -n "$SETUP_RESULT" ]]; then
-        # Extract only the JSON part (last line that starts with {)
         SETUP_RESULT=$(echo "$SETUP_RESULT" | grep -E '^\{.*\}$' | tail -1)
     fi
+}
 
-    # Mark as installed
-    date -Iseconds > "$INSTALL_DIR/.installed"
-
-    # Display setup information
+# Show completion message
+show_completion_message() {
     echo ""
     echo -e "${GREEN}========================================${NC}"
     echo -e "${GREEN}     AutoMade Installation Complete     ${NC}"
@@ -1139,7 +1227,7 @@ do_install() {
     echo -e "URL: ${BLUE}https://${DOMAIN}${NC}"
     echo ""
 
-    if [[ -n "$SETUP_RESULT" ]] && echo "$SETUP_RESULT" | jq -e '.credentials' &>/dev/null; then
+    if [[ -n "${SETUP_RESULT:-}" ]] && echo "$SETUP_RESULT" | jq -e '.credentials' &>/dev/null; then
         PASSWORD=$(echo "$SETUP_RESULT" | jq -r '.credentials.password')
         TOTP_SECRET=$(echo "$SETUP_RESULT" | jq -r '.credentials.totpSecret')
 
@@ -1151,7 +1239,6 @@ do_install() {
         echo -e "TOTP Secret: ${GREEN}${TOTP_SECRET}${NC}"
         echo ""
 
-        # Generate TOTP QR code if qrencode is available
         if command -v qrencode &> /dev/null; then
             local TOTP_URI="otpauth://totp/AutoMade:${ADMIN_EMAIL}?secret=${TOTP_SECRET}&issuer=AutoMade"
             echo -e "${BLUE}Scan this QR code with your authenticator app:${NC}"
@@ -1182,8 +1269,7 @@ do_install() {
         echo "      console.log('Backup Codes:', r.credentials.backupCodes.join(', '));"
         echo "    });\""
         echo ""
-        # Check if there was an error message
-        if [[ -n "$SETUP_RESULT" ]] && echo "$SETUP_RESULT" | jq -e '.error' &>/dev/null; then
+        if [[ -n "${SETUP_RESULT:-}" ]] && echo "$SETUP_RESULT" | jq -e '.error' &>/dev/null; then
             local ERROR_MSG=$(echo "$SETUP_RESULT" | jq -r '.error')
             log_error "Setup error: $ERROR_MSG"
         fi
@@ -1198,42 +1284,89 @@ do_install() {
     log_info "Check Nginx logs: docker compose -f docker-compose.prod.yml logs nginx"
 }
 
+# Restart all services
+do_restart() {
+    log_info "Restarting all AutoMade services..."
+
+    if ! is_installed; then
+        log_error "AutoMade is not installed. Run install first."
+        exit 1
+    fi
+
+    cd "$INSTALL_DIR"
+
+    log_info "Stopping services..."
+    docker compose -f docker-compose.prod.yml stop
+
+    log_info "Starting services..."
+    docker compose -f docker-compose.prod.yml up -d
+
+    log_info "Waiting for services to be ready..."
+    sleep 5
+
+    # Check health
+    if docker exec automade_api wget -q --spider http://localhost:3000/api/health 2>/dev/null; then
+        log_success "All services restarted successfully!"
+    else
+        log_warn "API health check failed. Check logs: docker compose -f docker-compose.prod.yml logs api"
+    fi
+
+    status
+}
+
 # Update AutoMade
-update() {
+do_update() {
     log_info "Updating AutoMade..."
+
+    if ! is_installed; then
+        log_error "AutoMade is not installed. Run install first."
+        exit 1
+    fi
 
     cd "$INSTALL_DIR"
 
     CURRENT_VERSION=$(get_current_version)
     log_info "Current version: $CURRENT_VERSION"
 
-    # Back up .env (contains secrets and domain config)
+    # Prompt about SSL certificate
+    echo ""
+    echo -e "${CYAN}SSL Certificate Options:${NC}"
+    echo "  1) Keep current certificate (recommended)"
+    echo "  2) Request new certificate from Let's Encrypt"
+    echo ""
+    read -rp "Choose option [1]: " CERT_OPTION < /dev/tty
+    CERT_OPTION="${CERT_OPTION:-1}"
+
+    local RENEW_CERT=false
+    if [[ "$CERT_OPTION" == "2" ]]; then
+        RENEW_CERT=true
+        log_info "Will request new SSL certificate after update"
+    fi
+
+    # Back up configuration
     log_info "Backing up local configuration..."
     local BACKUP_DIR="/tmp/automade_backup_$$"
     mkdir -p "$BACKUP_DIR"
 
-    # Save .env file (has secrets and domain-specific config)
     if [[ -f ".env" ]]; then
         cp .env "$BACKUP_DIR/"
     fi
 
-    # Save nginx config (has domain-specific settings)
     if [[ -d "nginx" ]]; then
         cp -r nginx "$BACKUP_DIR/"
     fi
 
-    # Reset local changes to allow clean pull
+    # Reset and pull
     log_info "Resetting local changes for clean update..."
     git reset --hard HEAD 2>/dev/null || true
     git clean -fd 2>/dev/null || true
 
-    # Pull latest changes
     log_info "Pulling latest changes..."
     git fetch origin "$BRANCH"
     git checkout "$BRANCH"
     git pull origin "$BRANCH"
 
-    # Restore backed up configuration files
+    # Restore configuration
     log_info "Restoring local configuration..."
     if [[ -f "$BACKUP_DIR/.env" ]]; then
         cp "$BACKUP_DIR/.env" .env
@@ -1242,148 +1375,158 @@ update() {
         cp -r "$BACKUP_DIR/nginx" .
     fi
 
-    # Clean up backup
     rm -rf "$BACKUP_DIR"
 
     NEW_VERSION=$(get_current_version)
     log_info "New version: $NEW_VERSION"
 
-    if [[ "$CURRENT_VERSION" == "$NEW_VERSION" ]]; then
-        log_info "Already at the latest version"
-    fi
-
-    # Verify Docker is available before updating services
-    if ! command -v docker &> /dev/null; then
-        log_warn "Docker is not installed. Attempting to install..."
-        install_docker
-        if ! command -v docker &> /dev/null; then
-            log_error "Docker installation failed. Please install Docker and Docker Compose manually:"
-            log_info "  https://docs.docker.com/engine/install/"
-            log_info "  https://docs.docker.com/compose/install/"
-            exit 1
-        fi
-    fi
-
-    if ! docker info &> /dev/null; then
-        log_warn "Docker daemon is not running. Attempting to start..."
-        if command -v systemctl &> /dev/null; then
-            systemctl start docker
-            systemctl enable docker
-        elif command -v service &> /dev/null; then
-            service docker start
-        else
-            log_error "Could not start Docker daemon. Please start it manually."
-            exit 1
-        fi
-    fi
-
-    if ! docker compose version &> /dev/null; then
-        log_warn "Docker Compose is not installed. Attempting to install..."
-        if command -v apt-get &> /dev/null; then
-            apt-get update && apt-get install -y docker-compose-plugin
-        elif command -v yum &> /dev/null; then
-            yum install -y docker-compose-plugin
-        elif command -v apk &> /dev/null; then
-            apk add --no-cache docker-cli-compose
-        else
-            log_error "Could not install Docker Compose. Please install it manually:"
-            log_info "  https://docs.docker.com/compose/install/"
-            exit 1
-        fi
-        if ! docker compose version &> /dev/null; then
-            log_error "Docker Compose installation failed. Please install it manually:"
-            log_info "  https://docs.docker.com/compose/install/"
-            exit 1
-        fi
-    fi
-
     # Stop services
     log_info "Stopping services..."
     docker compose -f docker-compose.prod.yml down
 
-    # Rebuild and restart services
-    log_info "Rebuilding and restarting services..."
-    docker compose -f docker-compose.prod.yml build --pull
+    # Rebuild with force
+    log_info "Rebuilding services (force rebuild)..."
+    docker compose -f docker-compose.prod.yml build --pull --no-cache
+
+    # Start services
+    log_info "Starting services..."
     docker compose -f docker-compose.prod.yml up -d
 
-    # Fix volume permissions for API container
+    # Fix permissions
     log_info "Fixing volume permissions..."
     sleep 3
     docker exec -u root automade_api chown -R appuser:nodejs /data/automade 2>/dev/null || log_warn "Could not fix volume permissions"
 
-    # Wait for services to be healthy
-    log_info "Waiting for services to be ready..."
-    local max_wait=60
+    # Wait for database
+    log_info "Waiting for database..."
     local waited=0
-    while [[ $waited -lt $max_wait ]]; do
+    while [[ $waited -lt 60 ]]; do
         if docker exec automade_postgres pg_isready -U automade &>/dev/null; then
             log_success "Database is ready"
             break
         fi
         sleep 2
         waited=$((waited + 2))
-        if [[ $((waited % 10)) -eq 0 ]]; then
-            log_info "Still waiting for services... ($waited seconds)"
-        fi
     done
 
-    # Load POSTGRES_PASSWORD from existing .env
-    local POSTGRES_PASSWORD=""
-    if [[ -f "$INSTALL_DIR/.env" ]]; then
-        POSTGRES_PASSWORD=$(grep '^POSTGRES_PASSWORD=' "$INSTALL_DIR/.env" | cut -d'=' -f2-)
-    fi
-
-    # Run database schema push (using host npm with dev dependencies)
+    # Run database migrations
     log_info "Updating database schema..."
-    if command -v npm &> /dev/null && [[ -n "$POSTGRES_PASSWORD" ]]; then
-        npm install --silent 2>/dev/null || npm install
+    run_db_push
 
-        # Get postgres container IP for connection from host
-        local DB_HOST=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' automade_postgres 2>/dev/null || echo "")
-        if [[ -z "$DB_HOST" ]]; then
-            DB_HOST="postgres"
+    # Renew certificate if requested
+    if [[ "$RENEW_CERT" == "true" ]]; then
+        log_info "Requesting new SSL certificate..."
+        load_existing_config
+        if obtain_ssl_certificate; then
+            create_nginx_ssl_config
+            docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload 2>/dev/null || \
+                docker compose -f docker-compose.prod.yml restart nginx
+            log_success "SSL certificate renewed"
         fi
-
-        log_info "Pushing database schema (host: $DB_HOST)..."
-        DATABASE_URL="postgresql://automade:${POSTGRES_PASSWORD}@${DB_HOST}:5432/automade" npm run db:push 2>&1 || {
-            log_warn "db:push with host connection failed, trying via docker network..."
-            # Docker Compose prefixes network name with project name
-            local NETWORK_NAME=$(docker network ls --format '{{.Name}}' | grep -E 'automade.*network' | head -1)
-            if [[ -z "$NETWORK_NAME" ]]; then
-                NETWORK_NAME="automade_automade_network"
-            fi
-            docker run --rm --network "$NETWORK_NAME" \
-                -v "$INSTALL_DIR:/app" \
-                -w /app \
-                -e "DATABASE_URL=postgresql://automade:${POSTGRES_PASSWORD}@postgres:5432/automade" \
-                node:22-alpine sh -c "npm install --silent && npx drizzle-kit push --force" 2>&1 || {
-                    log_warn "db:push failed, schema may already be up to date"
-                }
-        }
-    elif [[ -n "$POSTGRES_PASSWORD" ]]; then
-        log_warn "npm not found on host, running db:push via Docker..."
-        # Docker Compose prefixes network name with project name
-        local NETWORK_NAME=$(docker network ls --format '{{.Name}}' | grep -E 'automade.*network' | head -1)
-        if [[ -z "$NETWORK_NAME" ]]; then
-            NETWORK_NAME="automade_automade_network"
-        fi
-        docker run --rm --network "$NETWORK_NAME" \
-            -v "$INSTALL_DIR:/app" \
-            -w /app \
-            -e "DATABASE_URL=postgresql://automade:${POSTGRES_PASSWORD}@postgres:5432/automade" \
-            node:22-alpine sh -c "npm install && npx drizzle-kit push --force" 2>&1 || {
-                log_warn "db:push failed, schema may already be up to date"
-            }
-    else
-        log_warn "Could not read POSTGRES_PASSWORD from .env, skipping schema update"
     fi
 
-    # Update installed timestamp
     date -Iseconds > "$INSTALL_DIR/.installed"
 
     echo ""
     log_success "AutoMade updated successfully!"
     log_info "Version: $NEW_VERSION"
+    status
+}
+
+# Reinstall from scratch (save cert)
+do_reinstall() {
+    log_warn "This will completely reinstall AutoMade from scratch!"
+    log_info "Your SSL certificate will be preserved."
+    log_warn "Your DATABASE WILL BE DELETED!"
+    echo ""
+    read -rp "Are you sure? Type 'yes' to confirm: " CONFIRM < /dev/tty
+
+    if [[ "$CONFIRM" != "yes" ]]; then
+        log_info "Reinstall cancelled"
+        return
+    fi
+
+    # Backup certificate
+    if is_installed; then
+        cd "$INSTALL_DIR"
+        backup_certificates
+    fi
+
+    # Full uninstall (without deleting cert backup)
+    do_uninstall_internal true
+
+    # Fresh install
+    check_dependencies
+    do_install
+
+    # Restore certificate if we have a backup
+    if [[ -d "$CERT_BACKUP_DIR/live" ]]; then
+        restore_certificates
+
+        # Load domain and update nginx config
+        load_existing_config
+        create_nginx_ssl_config
+
+        docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload 2>/dev/null || \
+            docker compose -f docker-compose.prod.yml restart nginx
+
+        log_success "SSL certificate restored"
+
+        # Clean up backup
+        rm -rf "$CERT_BACKUP_DIR"
+    fi
+
+    log_success "Reinstallation complete!"
+}
+
+# Internal uninstall function
+do_uninstall_internal() {
+    local KEEP_CERT_BACKUP="${1:-false}"
+
+    log_info "Stopping services..."
+    if [[ -f "$INSTALL_DIR/docker-compose.prod.yml" ]]; then
+        cd "$INSTALL_DIR"
+        docker compose -f docker-compose.prod.yml down -v
+    fi
+
+    log_info "Removing installation..."
+    rm -rf "$INSTALL_DIR"
+
+    log_info "Removing data directory..."
+    rm -rf "$DATA_DIR"
+
+    if [[ "$KEEP_CERT_BACKUP" != "true" ]] && [[ -d "$CERT_BACKUP_DIR" ]]; then
+        rm -rf "$CERT_BACKUP_DIR"
+    fi
+
+    log_success "AutoMade uninstalled"
+}
+
+# Uninstall (with certificate backup)
+do_uninstall() {
+    log_warn "This will remove AutoMade and all data!"
+    log_info "Your SSL certificate will be backed up to: $CERT_BACKUP_DIR"
+    echo ""
+    read -rp "Are you sure? Type 'yes' to confirm: " CONFIRM < /dev/tty
+
+    if [[ "$CONFIRM" != "yes" ]]; then
+        log_info "Uninstall cancelled"
+        return
+    fi
+
+    # Backup certificate first
+    if is_installed; then
+        cd "$INSTALL_DIR"
+        backup_certificates
+    fi
+
+    do_uninstall_internal true
+
+    echo ""
+    if [[ -d "$CERT_BACKUP_DIR/live" ]]; then
+        log_success "SSL certificate backed up to: $CERT_BACKUP_DIR"
+        log_info "To restore later, the certificate is preserved."
+    fi
 }
 
 # Show status
@@ -1407,52 +1550,98 @@ status() {
     docker compose -f docker-compose.prod.yml ps
 }
 
-# Uninstall
-uninstall() {
-    log_warn "This will remove AutoMade and all data!"
-    read -rp "Are you sure? Type 'yes' to confirm: " CONFIRM < /dev/tty
-
-    if [[ "$CONFIRM" != "yes" ]]; then
-        log_info "Uninstall cancelled"
-        return
-    fi
-
-    log_info "Stopping services..."
-    if [[ -f "$INSTALL_DIR/docker-compose.prod.yml" ]]; then
-        cd "$INSTALL_DIR"
-        docker compose -f docker-compose.prod.yml down -v
-    fi
-
-    log_info "Removing installation..."
-    rm -rf "$INSTALL_DIR"
-
-    read -rp "Remove data directory ($DATA_DIR)? (y/N): " REMOVE_DATA < /dev/tty
-    if [[ "$REMOVE_DATA" =~ ^[Yy]$ ]]; then
-        rm -rf "$DATA_DIR"
-        log_success "Data removed"
-    fi
-
-    log_success "AutoMade uninstalled"
-}
-
 # Show usage
 usage() {
-    echo "AutoMade Upstall Script"
+    echo ""
+    echo -e "${GREEN}AutoMade Upstall Script${NC}"
     echo ""
     echo "Usage: $0 [command]"
     echo ""
-    echo "Commands:"
-    echo "  install   Install AutoMade (or run without arguments)"
-    echo "  update    Update to the latest version"
-    echo "  status    Show current status"
-    echo "  uninstall Remove AutoMade"
-    echo "  help      Show this help message"
+    echo -e "${CYAN}Commands:${NC}"
     echo ""
-    echo "Environment Variables:"
+    echo -e "  ${GREEN}install${NC}     Fresh installation of AutoMade"
+    echo "              - Clones repository, configures services, obtains SSL cert"
+    echo "              - Sets up database and creates admin account"
+    echo ""
+    echo -e "  ${GREEN}restart${NC}     Restart all services"
+    echo "              - Stops and starts all containers"
+    echo "              - Preserves all data and configuration"
+    echo ""
+    echo -e "  ${GREEN}update${NC}      Update to latest version"
+    echo "              - Pulls latest code and rebuilds containers"
+    echo "              - Preserves database and configuration"
+    echo "              - Option to renew SSL certificate"
+    echo ""
+    echo -e "  ${GREEN}reinstall${NC}   Complete reinstall from scratch"
+    echo "              - Backs up SSL certificate"
+    echo "              - Removes everything and reinstalls fresh"
+    echo "              - Restores SSL certificate"
+    echo "              - WARNING: Deletes database!"
+    echo ""
+    echo -e "  ${GREEN}uninstall${NC}   Remove AutoMade"
+    echo "              - Backs up SSL certificate"
+    echo "              - Removes all containers and data"
+    echo ""
+    echo -e "  ${GREEN}status${NC}      Show current status"
+    echo ""
+    echo -e "  ${GREEN}help${NC}        Show this help message"
+    echo ""
+    echo -e "${CYAN}Environment Variables:${NC}"
     echo "  AUTOMADE_INSTALL_DIR  Installation directory (default: /opt/automade)"
     echo "  AUTOMADE_DATA_DIR     Data directory (default: /data/automade)"
     echo "  AUTOMADE_REPO_URL     Repository URL"
     echo "  AUTOMADE_BRANCH       Git branch (default: main)"
+    echo ""
+}
+
+# Show interactive menu
+show_menu() {
+    echo ""
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}       AutoMade Management Menu         ${NC}"
+    echo -e "${GREEN}========================================${NC}"
+    echo ""
+
+    if is_installed; then
+        echo -e "Status: ${GREEN}Installed${NC} (v$(get_current_version))"
+    else
+        echo -e "Status: ${YELLOW}Not installed${NC}"
+    fi
+    echo ""
+    echo "Select an option:"
+    echo ""
+
+    if is_installed; then
+        echo "  1) Restart all services"
+        echo "  2) Update (pull latest, rebuild, keep data)"
+        echo "  3) Reinstall from scratch (save cert, delete data)"
+        echo "  4) Uninstall (save cert)"
+        echo "  5) Show status"
+        echo "  6) Exit"
+        echo ""
+        read -rp "Enter choice [1-6]: " CHOICE < /dev/tty
+
+        case "$CHOICE" in
+            1) do_restart ;;
+            2) do_update ;;
+            3) do_reinstall ;;
+            4) do_uninstall ;;
+            5) status ;;
+            6) exit 0 ;;
+            *) log_error "Invalid choice"; show_menu ;;
+        esac
+    else
+        echo "  1) Install AutoMade"
+        echo "  2) Exit"
+        echo ""
+        read -rp "Enter choice [1-2]: " CHOICE < /dev/tty
+
+        case "$CHOICE" in
+            1) check_dependencies; do_install ;;
+            2) exit 0 ;;
+            *) log_error "Invalid choice"; show_menu ;;
+        esac
+    fi
 }
 
 # Main entry point
@@ -1460,35 +1649,41 @@ main() {
     check_root
 
     case "${1:-}" in
-        update)
-            check_dependencies
-            if is_installed; then
-                update
-            else
-                log_error "AutoMade is not installed. Run install first."
-                exit 1
-            fi
-            ;;
-        status)
-            status
-            ;;
-        uninstall)
-            uninstall
-            ;;
-        help|--help|-h)
-            usage
-            ;;
-        install|"")
+        install)
             check_dependencies
             if is_installed; then
                 log_info "AutoMade is already installed"
-                read -rp "Would you like to update? (y/N): " DO_UPDATE < /dev/tty
+                read -rp "Would you like to update instead? (y/N): " DO_UPDATE < /dev/tty
                 if [[ "$DO_UPDATE" =~ ^[Yy]$ ]]; then
-                    update
+                    do_update
                 fi
             else
                 do_install
             fi
+            ;;
+        restart)
+            do_restart
+            ;;
+        update)
+            check_dependencies
+            do_update
+            ;;
+        reinstall)
+            check_dependencies
+            do_reinstall
+            ;;
+        uninstall)
+            do_uninstall
+            ;;
+        status)
+            status
+            ;;
+        help|--help|-h)
+            usage
+            ;;
+        "")
+            # No argument - show interactive menu
+            show_menu
             ;;
         *)
             log_error "Unknown command: $1"
