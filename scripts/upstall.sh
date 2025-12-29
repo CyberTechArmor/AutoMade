@@ -3,12 +3,24 @@
 # AutoMade Upstall Script
 # Installs AutoMade on first run, or updates if already installed.
 #
-# Usage: ./upstall.sh
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/CyberTechArmor/AutoMade/main/scripts/upstall.sh | sudo bash
 #
-# Requirements:
+# Or download and run:
+#   ./upstall.sh [install|update|status|uninstall|help]
+#
+# Dependencies (auto-installed if missing):
 # - Docker and Docker Compose
-# - curl or wget
-# - jq (will be installed if missing)
+# - curl
+# - git
+# - jq
+# - openssl
+#
+# Supported Operating Systems:
+# - Ubuntu / Debian
+# - CentOS / RHEL / Rocky Linux / AlmaLinux
+# - Fedora
+# - Alpine Linux
 #
 
 set -euo pipefail
@@ -23,7 +35,7 @@ NC='\033[0m' # No Color
 # Configuration
 INSTALL_DIR="${AUTOMADE_INSTALL_DIR:-/opt/automade}"
 DATA_DIR="${AUTOMADE_DATA_DIR:-/data/automade}"
-REPO_URL="${AUTOMADE_REPO_URL:-https://github.com/fractionate/automade}"
+REPO_URL="${AUTOMADE_REPO_URL:-https://github.com/CyberTechArmor/AutoMade}"
 BRANCH="${AUTOMADE_BRANCH:-main}"
 
 # Logging functions
@@ -51,37 +63,236 @@ check_root() {
     fi
 }
 
+# Detect the operating system
+detect_os() {
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        OS_ID="${ID:-unknown}"
+        OS_VERSION="${VERSION_ID:-}"
+        OS_LIKE="${ID_LIKE:-$OS_ID}"
+    elif [[ -f /etc/redhat-release ]]; then
+        OS_ID="rhel"
+        OS_LIKE="rhel"
+    else
+        OS_ID="unknown"
+        OS_LIKE="unknown"
+    fi
+}
+
+# Install Docker on Debian/Ubuntu
+install_docker_debian() {
+    log_info "Installing Docker on Debian/Ubuntu..."
+
+    # Remove old versions
+    apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
+
+    # Install prerequisites
+    apt-get update
+    apt-get install -y \
+        ca-certificates \
+        curl \
+        gnupg \
+        lsb-release
+
+    # Add Docker's official GPG key
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL "https://download.docker.com/linux/${OS_ID}/gpg" | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    chmod a+r /etc/apt/keyrings/docker.gpg
+
+    # Set up the repository
+    echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${OS_ID} \
+        $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+        tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    # Install Docker Engine
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+    # Start and enable Docker
+    systemctl start docker
+    systemctl enable docker
+
+    log_success "Docker installed successfully"
+}
+
+# Install Docker on RHEL/CentOS/Fedora
+install_docker_rhel() {
+    log_info "Installing Docker on RHEL/CentOS/Fedora..."
+
+    # Remove old versions
+    yum remove -y docker docker-client docker-client-latest docker-common \
+        docker-latest docker-latest-logrotate docker-logrotate docker-engine 2>/dev/null || true
+
+    # Install prerequisites
+    yum install -y yum-utils
+
+    # Add Docker repository
+    if [[ "$OS_ID" == "fedora" ]]; then
+        yum-config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+    else
+        yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+    fi
+
+    # Install Docker Engine
+    yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+    # Start and enable Docker
+    systemctl start docker
+    systemctl enable docker
+
+    log_success "Docker installed successfully"
+}
+
+# Install Docker on Alpine
+install_docker_alpine() {
+    log_info "Installing Docker on Alpine..."
+
+    # Install Docker from Alpine repositories
+    apk add --no-cache docker docker-cli-compose
+
+    # Start and enable Docker
+    rc-update add docker boot
+    service docker start
+
+    log_success "Docker installed successfully"
+}
+
+# Install Docker based on detected OS
+install_docker() {
+    detect_os
+
+    log_info "Detected OS: $OS_ID (like: $OS_LIKE)"
+
+    case "$OS_ID" in
+        ubuntu|debian)
+            install_docker_debian
+            ;;
+        centos|rhel|rocky|almalinux|ol)
+            install_docker_rhel
+            ;;
+        fedora)
+            install_docker_rhel
+            ;;
+        alpine)
+            install_docker_alpine
+            ;;
+        *)
+            # Try to detect based on OS_LIKE
+            if [[ "$OS_LIKE" == *"debian"* ]] || [[ "$OS_LIKE" == *"ubuntu"* ]]; then
+                install_docker_debian
+            elif [[ "$OS_LIKE" == *"rhel"* ]] || [[ "$OS_LIKE" == *"fedora"* ]] || [[ "$OS_LIKE" == *"centos"* ]]; then
+                install_docker_rhel
+            else
+                log_error "Unsupported operating system: $OS_ID"
+                log_info "Please install Docker manually: https://docs.docker.com/engine/install/"
+                exit 1
+            fi
+            ;;
+    esac
+}
+
+# Install common dependencies based on OS
+install_package() {
+    local package="$1"
+
+    detect_os
+
+    log_info "Installing $package..."
+
+    if command -v apt-get &> /dev/null; then
+        apt-get update && apt-get install -y "$package"
+    elif command -v yum &> /dev/null; then
+        yum install -y "$package"
+    elif command -v dnf &> /dev/null; then
+        dnf install -y "$package"
+    elif command -v apk &> /dev/null; then
+        apk add --no-cache "$package"
+    else
+        log_error "Could not install $package. Please install it manually."
+        return 1
+    fi
+
+    log_success "$package installed successfully"
+}
+
 # Check for required dependencies
 check_dependencies() {
     log_info "Checking dependencies..."
 
+    # Check for curl (needed for Docker installation)
+    if ! command -v curl &> /dev/null; then
+        log_warn "curl is not installed. Installing..."
+        install_package curl
+    fi
+
+    # Check for git
+    if ! command -v git &> /dev/null; then
+        log_warn "git is not installed. Installing..."
+        install_package git
+    fi
+
     # Check Docker
     if ! command -v docker &> /dev/null; then
-        log_error "Docker is not installed. Please install Docker first."
-        log_info "Visit: https://docs.docker.com/engine/install/"
-        exit 1
+        log_warn "Docker is not installed. Installing..."
+        install_docker
+    else
+        log_info "Docker is already installed"
+    fi
+
+    # Ensure Docker daemon is running
+    if ! docker info &> /dev/null; then
+        log_info "Starting Docker daemon..."
+        if command -v systemctl &> /dev/null; then
+            systemctl start docker
+            systemctl enable docker
+        elif command -v service &> /dev/null; then
+            service docker start
+        else
+            log_error "Could not start Docker daemon. Please start it manually."
+            exit 1
+        fi
     fi
 
     # Check Docker Compose
     if ! docker compose version &> /dev/null; then
-        log_error "Docker Compose is not installed or not available."
-        log_info "Docker Compose is included with Docker Desktop or can be installed separately."
-        exit 1
+        log_warn "Docker Compose plugin not found. Attempting to install..."
+
+        detect_os
+
+        if command -v apt-get &> /dev/null; then
+            apt-get update && apt-get install -y docker-compose-plugin
+        elif command -v yum &> /dev/null; then
+            yum install -y docker-compose-plugin
+        elif command -v apk &> /dev/null; then
+            apk add --no-cache docker-cli-compose
+        else
+            log_error "Could not install Docker Compose plugin."
+            log_info "Please install it manually: https://docs.docker.com/compose/install/"
+            exit 1
+        fi
+
+        # Verify installation
+        if ! docker compose version &> /dev/null; then
+            log_error "Docker Compose installation failed."
+            exit 1
+        fi
+
+        log_success "Docker Compose plugin installed"
+    else
+        log_info "Docker Compose is already installed"
     fi
 
     # Check for jq and install if missing
     if ! command -v jq &> /dev/null; then
-        log_info "Installing jq..."
-        if command -v apt-get &> /dev/null; then
-            apt-get update && apt-get install -y jq
-        elif command -v yum &> /dev/null; then
-            yum install -y jq
-        elif command -v apk &> /dev/null; then
-            apk add --no-cache jq
-        else
-            log_error "Could not install jq. Please install it manually."
-            exit 1
-        fi
+        log_warn "jq is not installed. Installing..."
+        install_package jq
+    fi
+
+    # Check for openssl (needed for generating secrets)
+    if ! command -v openssl &> /dev/null; then
+        log_warn "openssl is not installed. Installing..."
+        install_package openssl
     fi
 
     log_success "All dependencies are available"
@@ -284,7 +495,7 @@ services:
       - automade_network
 
   api:
-    image: ghcr.io/fractionate/automade:latest
+    image: ghcr.io/cybertecharmor/automade:latest
     container_name: automade_api
     restart: unless-stopped
     env_file:
