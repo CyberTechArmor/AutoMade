@@ -87,24 +87,34 @@ install_docker_debian() {
     apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
 
     # Install prerequisites
-    apt-get update
-    apt-get install -y \
-        ca-certificates \
-        curl \
-        gnupg \
-        lsb-release
+    if ! apt-get update; then
+        log_error "Failed to update package lists"
+        return 1
+    fi
+
+    if ! apt-get install -y ca-certificates curl gnupg lsb-release; then
+        log_error "Failed to install prerequisites"
+        return 1
+    fi
 
     # Add Docker's official GPG key (with retry and better error handling)
-    install -m 0755 -d /etc/apt/keyrings
+    if ! install -m 0755 -d /etc/apt/keyrings; then
+        log_error "Failed to create /etc/apt/keyrings directory"
+        return 1
+    fi
 
     # Remove existing key to avoid GPG prompts
     rm -f /etc/apt/keyrings/docker.gpg
 
     # Download GPG key with retries
+    log_info "Downloading Docker GPG key..."
     local retry_count=0
     local max_retries=3
+    local gpg_success=false
+
     while [[ $retry_count -lt $max_retries ]]; do
         if curl -fsSL "https://download.docker.com/linux/${OS_ID}/gpg" 2>/dev/null | gpg --dearmor -o /etc/apt/keyrings/docker.gpg 2>/dev/null; then
+            gpg_success=true
             break
         fi
         retry_count=$((retry_count + 1))
@@ -114,7 +124,7 @@ install_docker_debian() {
         fi
     done
 
-    if [[ ! -f /etc/apt/keyrings/docker.gpg ]]; then
+    if [[ "$gpg_success" != "true" ]] || [[ ! -f /etc/apt/keyrings/docker.gpg ]]; then
         log_error "Failed to download Docker GPG key after $max_retries attempts"
         log_info "Please check your network connection and try again"
         return 1
@@ -123,13 +133,19 @@ install_docker_debian() {
     chmod a+r /etc/apt/keyrings/docker.gpg
 
     # Set up the repository
+    log_info "Adding Docker repository..."
     echo \
         "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${OS_ID} \
         $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
         tee /etc/apt/sources.list.d/docker.list > /dev/null
 
     # Install Docker Engine
-    apt-get update
+    log_info "Installing Docker packages..."
+    if ! apt-get update; then
+        log_error "Failed to update package lists after adding Docker repository"
+        return 1
+    fi
+
     if ! apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
         log_error "Failed to install Docker packages"
         log_info "Try running: sudo apt-get update && sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
@@ -137,10 +153,12 @@ install_docker_debian() {
     fi
 
     # Start and enable Docker
+    log_info "Starting Docker service..."
     systemctl start docker || true
     systemctl enable docker || true
 
     log_success "Docker installed successfully"
+    return 0
 }
 
 # Install Docker on RHEL/CentOS/Fedora
@@ -191,27 +209,51 @@ install_docker() {
 
     log_info "Detected OS: $OS_ID (like: $OS_LIKE)"
 
-    local install_result=0
-
+    # Call the appropriate install function and capture result
+    # Using explicit if/then to properly capture return values
     case "$OS_ID" in
         ubuntu|debian)
-            install_docker_debian || install_result=$?
+            if install_docker_debian; then
+                return 0
+            else
+                return 1
+            fi
             ;;
         centos|rhel|rocky|almalinux|ol)
-            install_docker_rhel || install_result=$?
+            if install_docker_rhel; then
+                return 0
+            else
+                return 1
+            fi
             ;;
         fedora)
-            install_docker_rhel || install_result=$?
+            if install_docker_rhel; then
+                return 0
+            else
+                return 1
+            fi
             ;;
         alpine)
-            install_docker_alpine || install_result=$?
+            if install_docker_alpine; then
+                return 0
+            else
+                return 1
+            fi
             ;;
         *)
             # Try to detect based on OS_LIKE
             if [[ "$OS_LIKE" == *"debian"* ]] || [[ "$OS_LIKE" == *"ubuntu"* ]]; then
-                install_docker_debian || install_result=$?
+                if install_docker_debian; then
+                    return 0
+                else
+                    return 1
+                fi
             elif [[ "$OS_LIKE" == *"rhel"* ]] || [[ "$OS_LIKE" == *"fedora"* ]] || [[ "$OS_LIKE" == *"centos"* ]]; then
-                install_docker_rhel || install_result=$?
+                if install_docker_rhel; then
+                    return 0
+                else
+                    return 1
+                fi
             else
                 log_error "Unsupported operating system: $OS_ID"
                 log_info "Please install Docker manually: https://docs.docker.com/engine/install/"
@@ -219,8 +261,6 @@ install_docker() {
             fi
             ;;
     esac
-
-    return $install_result
 }
 
 # Install common dependencies based on OS
