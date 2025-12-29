@@ -1,8 +1,20 @@
 # AutoMade Docker Compose Configuration
-# Use docker-compose.prod.yml for production with Traefik + Let's Encrypt
+# Use docker-compose.prod.yml for production with Nginx + Let's Encrypt
 # Use docker-compose.dev.yml for local development
 
 services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - automade
+
   api:
     build:
       context: .
