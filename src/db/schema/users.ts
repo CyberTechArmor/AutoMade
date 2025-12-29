@@ -6,6 +6,7 @@ import {
   boolean,
   index,
   uniqueIndex,
+  jsonb,
 } from 'drizzle-orm/pg-core';
 import { userRoleEnum } from './enums.js';
 
@@ -29,6 +30,9 @@ export const users = pgTable('users', {
 
   /** Whether MFA is enabled for this user. */
   mfaEnabled: boolean('mfa_enabled').notNull().default(false),
+
+  /** Hashed MFA backup codes for recovery. */
+  mfaBackupCodes: jsonb('mfa_backup_codes').$type<string[]>(),
 
   /** User's timezone for scheduling. */
   timezone: text('timezone').notNull().default('America/New_York'),

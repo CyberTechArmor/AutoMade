@@ -3,6 +3,7 @@ import { eq, and, isNull, desc, sql } from 'drizzle-orm';
 import { NotFoundError } from '../../lib/errors.js';
 import { audit } from '../../lib/audit.js';
 import { chat, streamChat, DISCOVERY_PROMPTS } from '../../lib/llm.js';
+import * as livekit from '../../lib/livekit.js';
 import type { CreateSessionInput, UpdateSessionInput, AddTranscriptInput } from './sessions.schemas.js';
 
 interface ListSessionsOptions {
@@ -370,4 +371,131 @@ export async function generateSessionSummary(
     actionItems: [], // Would parse from content
     nextSteps: [], // Would parse from content
   };
+}
+
+// ============================================================================
+// LiveKit Integration for Real-time Voice/Video Sessions
+// ============================================================================
+
+/**
+ * Create a LiveKit room for a session (voice/video sessions)
+ */
+export async function createSessionRoom(sessionId: string): Promise<{
+  roomName: string;
+  roomSid: string;
+}> {
+  const session = await getSessionById(sessionId);
+
+  if (!session) {
+    throw new NotFoundError('Session');
+  }
+
+  // Only create rooms for voice/video sessions
+  if (session.type === 'text') {
+    throw new Error('Text sessions do not require a LiveKit room');
+  }
+
+  const room = await livekit.createRoom({
+    sessionId,
+    emptyTimeout: 600, // 10 minutes
+    maxParticipants: 20,
+  });
+
+  // Update session with room info
+  await db
+    .update(schema.sessions)
+    .set({
+      livekitRoom: room.roomName,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.sessions.id, sessionId));
+
+  return room;
+}
+
+/**
+ * Generate a LiveKit access token for a participant
+ */
+export async function generateParticipantToken(
+  sessionId: string,
+  userId: string,
+  userName: string,
+  options?: {
+    canPublish?: boolean;
+    canSubscribe?: boolean;
+  }
+): Promise<string> {
+  const session = await getSessionById(sessionId);
+
+  if (!session) {
+    throw new NotFoundError('Session');
+  }
+
+  // Ensure room exists
+  if (!session.livekitRoom) {
+    await createSessionRoom(sessionId);
+  }
+
+  return livekit.generateParticipantToken({
+    sessionId,
+    participantId: userId,
+    participantName: userName,
+    canPublish: options?.canPublish ?? true,
+    canSubscribe: options?.canSubscribe ?? true,
+  });
+}
+
+/**
+ * Get LiveKit room status
+ */
+export async function getSessionRoomStatus(sessionId: string): Promise<{
+  exists: boolean;
+  numParticipants: number;
+  participants: Array<{
+    identity: string;
+    name: string;
+    joinedAt: number;
+    isPublisher: boolean;
+  }>;
+} | null> {
+  const room = await livekit.getRoom(sessionId);
+
+  if (!room) {
+    return { exists: false, numParticipants: 0, participants: [] };
+  }
+
+  const participants = await livekit.listParticipants(sessionId);
+
+  return {
+    exists: true,
+    numParticipants: room.numParticipants,
+    participants,
+  };
+}
+
+/**
+ * Close a session's LiveKit room
+ */
+export async function closeSessionRoom(sessionId: string): Promise<boolean> {
+  return livekit.closeRoom(sessionId);
+}
+
+/**
+ * Remove a participant from the session's LiveKit room
+ */
+export async function removeSessionParticipant(
+  sessionId: string,
+  participantId: string
+): Promise<boolean> {
+  return livekit.removeParticipant(sessionId, participantId);
+}
+
+/**
+ * Send data to all participants in the session room
+ */
+export async function broadcastToSessionRoom(
+  sessionId: string,
+  data: Record<string, unknown>
+): Promise<boolean> {
+  return livekit.sendDataToRoom(sessionId, data);
 }

@@ -1,3 +1,7 @@
+# AutoMade Docker Compose Configuration
+# Use docker-compose.prod.yml for production with Traefik + Let's Encrypt
+# Use docker-compose.dev.yml for local development
+
 services:
   api:
     build:
@@ -5,32 +9,31 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
-      - PORT=3000
-      - DATABASE_URL=postgres://automade:automade@postgres:5432/automade
-      - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET:-change-this-in-production}
-      - JWT_ISSUER=automade
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY:-}
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - automade
 
   postgres:
     image: postgres:16-alpine
     environment:
-      - POSTGRES_USER=automade
-      - POSTGRES_PASSWORD=automade
-      - POSTGRES_DB=automade
+      POSTGRES_USER: automade
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-automade}
+      POSTGRES_DB: automade
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -44,9 +47,14 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "${REDIS_PASSWORD:+-a ${REDIS_PASSWORD}}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
     networks:
       - automade

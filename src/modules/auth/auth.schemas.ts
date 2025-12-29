@@ -34,3 +34,32 @@ export const changePasswordSchema = z.object({
 });
 
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>['body'];
+
+// MFA verification schema (used after password authentication)
+export const mfaVerifySchema = z.object({
+  body: z.object({
+    mfaToken: z.string().min(1, 'MFA token is required'),
+    code: z.string().length(6, 'Code must be 6 digits').regex(/^\d+$/, 'Code must be numeric'),
+  }),
+});
+
+export type MfaVerifyInput = z.infer<typeof mfaVerifySchema>['body'];
+
+// MFA setup schema (for enabling MFA on existing account)
+export const mfaSetupSchema = z.object({
+  body: z.object({
+    code: z.string().length(6, 'Code must be 6 digits').regex(/^\d+$/, 'Code must be numeric'),
+  }),
+});
+
+export type MfaSetupInput = z.infer<typeof mfaSetupSchema>['body'];
+
+// Backup code verification schema
+export const backupCodeSchema = z.object({
+  body: z.object({
+    mfaToken: z.string().min(1, 'MFA token is required'),
+    backupCode: z.string().regex(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/, 'Invalid backup code format'),
+  }),
+});
+
+export type BackupCodeInput = z.infer<typeof backupCodeSchema>['body'];

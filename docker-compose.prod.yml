@@ -1,0 +1,115 @@
+# AutoMade Production Docker Compose with Traefik + Let's Encrypt
+#
+# Prerequisites:
+# - Set DOMAIN and ACME_EMAIL environment variables
+# - Configure .env file with all required secrets
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+
+services:
+  traefik:
+    image: traefik:v3.2
+    container_name: automade_traefik
+    restart: unless-stopped
+    command:
+      - "--api.dashboard=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=automade_network"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--log.level=INFO"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_acme:/acme
+    networks:
+      - automade_network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: automade_api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.api.loadbalancer.server.port=3000"
+      # Security headers
+      - "traefik.http.middlewares.api-headers.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.api-headers.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.api-headers.headers.stsPreload=true"
+      - "traefik.http.middlewares.api-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.api-headers.headers.frameDeny=true"
+      - "traefik.http.routers.api.middlewares=api-headers"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - automade_network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: automade_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: automade
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: automade
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U automade"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - automade_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: automade_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - automade_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  traefik_acme:
+
+networks:
+  automade_network:
+    driver: bridge
