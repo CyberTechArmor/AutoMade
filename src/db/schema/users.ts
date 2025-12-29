@@ -8,7 +8,7 @@ import {
   uniqueIndex,
   jsonb,
 } from 'drizzle-orm/pg-core';
-import { userRoleEnum } from './enums.js';
+import { userRoleEnum } from './enums';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
