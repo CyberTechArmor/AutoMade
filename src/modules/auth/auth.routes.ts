@@ -23,10 +23,22 @@ router.post('/login', validate(loginSchema), async (req, res, next) => {
       req.requestId
     );
 
+    // Check if MFA is required
+    if ('mfaRequired' in result && result.mfaRequired) {
+      res.json({
+        mfaRequired: true,
+        mfaToken: result.mfaToken,
+        user: result.user,
+      });
+      return;
+    }
+
+    // Type assertion: if not MFA required, must be AuthResult
+    const authResult = result as { user: { id: string; email: string; displayName: string; role: string }; accessToken: string; refreshToken: string };
     res.json({
-      user: result.user,
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
+      user: authResult.user,
+      accessToken: authResult.accessToken,
+      refreshToken: authResult.refreshToken,
       expiresIn: 900, // 15 minutes in seconds
     });
   } catch (error) {
@@ -67,10 +79,11 @@ router.post('/refresh', validate(refreshTokenSchema), async (req, res, next) => 
     const refreshToken = req.body.refreshToken || req.cookies?.refreshToken;
 
     if (!refreshToken) {
-      return res.status(401).json({
+      res.status(401).json({
         code: 'AUTHENTICATION_REQUIRED',
         message: 'Refresh token is required',
       });
+      return;
     }
 
     const result = await authService.refresh(
@@ -80,10 +93,11 @@ router.post('/refresh', validate(refreshTokenSchema), async (req, res, next) => 
     );
 
     if (!result) {
-      return res.status(401).json({
+      res.status(401).json({
         code: 'AUTHENTICATION_REQUIRED',
         message: 'Invalid or expired refresh token',
       });
+      return;
     }
 
     res.json({
@@ -163,10 +177,11 @@ router.get('/me', authenticate, async (req, res, next) => {
       .limit(1);
 
     if (!user) {
-      return res.status(404).json({
+      res.status(404).json({
         code: 'NOT_FOUND',
         message: 'User not found',
       });
+      return;
     }
 
     res.json(user);

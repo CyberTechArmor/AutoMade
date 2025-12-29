@@ -1,4 +1,4 @@
-import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient, DataPacket_Kind } from 'livekit-server-sdk';
 import { config } from '../config/index.js';
 import { logger } from './logger.js';
 
@@ -74,7 +74,7 @@ export async function createRoom(options: CreateRoomOptions): Promise<{
 /**
  * Generate an access token for a participant to join a LiveKit room
  */
-export function generateParticipantToken(options: CreateTokenOptions): string {
+export async function generateParticipantToken(options: CreateTokenOptions): Promise<string> {
   const {
     sessionId,
     participantId,
@@ -101,7 +101,7 @@ export function generateParticipantToken(options: CreateTokenOptions): string {
     canPublishData: true, // Allow data messages
   });
 
-  return token.toJwt();
+  return await token.toJwt();
 }
 
 /**
@@ -119,11 +119,11 @@ export async function getRoom(sessionId: string): Promise<{
     const service = getRoomService();
     const rooms = await service.listRooms([roomName]);
 
-    if (rooms.length === 0) {
+    const room = rooms[0];
+    if (!room) {
       return null;
     }
 
-    const room = rooms[0];
     return {
       name: room.name,
       sid: room.sid,
@@ -211,10 +211,12 @@ export async function sendDataToRoom(
     const service = getRoomService();
     const payload = new TextEncoder().encode(JSON.stringify(data));
 
-    await service.sendData(roomName, payload, {
-      destinationIdentities,
-      topic: 'app-data',
-    });
+    await service.sendData(
+      roomName,
+      payload,
+      DataPacket_Kind.RELIABLE,
+      { destinationSids: destinationIdentities, topic: 'app-data' }
+    );
 
     return true;
   } catch (error) {

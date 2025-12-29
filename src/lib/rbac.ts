@@ -1,4 +1,8 @@
+import type { RequestHandler } from 'express';
+import { ForbiddenError } from './errors.js';
+
 export const ROLES = {
+  SUPER_ADMIN: 'super_admin',
   ADMIN: 'admin',
   MANAGER: 'manager',
   CLIENT: 'client',
@@ -80,4 +84,29 @@ export function requiresOwnership(permission: Permission): boolean {
 
 export function getBasePermission(permission: Permission): string {
   return permission.replace(/:own$/, '').replace(/:published$/, '');
+}
+
+/**
+ * Middleware to require specific roles
+ */
+export function requireRole(allowedRoles: Role[]): RequestHandler {
+  return (req, _res, next) => {
+    const user = req.user;
+
+    if (!user) {
+      throw new ForbiddenError('Authentication required');
+    }
+
+    // Super admin always has access
+    if (user.role === ROLES.SUPER_ADMIN) {
+      next();
+      return;
+    }
+
+    if (!allowedRoles.includes(user.role)) {
+      throw new ForbiddenError(`This action requires one of: ${allowedRoles.join(', ')}`);
+    }
+
+    next();
+  };
 }

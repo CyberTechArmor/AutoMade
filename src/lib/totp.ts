@@ -13,7 +13,10 @@ const PERIOD = 30; // seconds
 export function generateSecret(): string {
   // Generate a 20-byte (160-bit) random secret
   const bytes = randomBytes(20);
-  return Secret.fromUint8Array(bytes).base32;
+  // Convert Buffer to ArrayBuffer for Secret constructor
+  const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  const secret = new Secret({ buffer: arrayBuffer });
+  return secret.base32;
 }
 
 /**
@@ -25,7 +28,10 @@ export function generatePassword(length: number = 16): string {
   let password = '';
 
   for (let i = 0; i < length; i++) {
-    password += charset[bytes[i] % charset.length];
+    const byte = bytes[i];
+    if (byte !== undefined) {
+      password += charset[byte % charset.length];
+    }
   }
 
   return password;

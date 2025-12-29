@@ -32,8 +32,9 @@ function parseExpiry(expiry: string): number {
 }
 
 export function generateAccessToken(payload: TokenPayload): string {
+  const expiresInSeconds = parseExpiry(config.jwt.accessExpiry);
   return jwt.sign(payload, config.jwt.secret, {
-    expiresIn: config.jwt.accessExpiry,
+    expiresIn: expiresInSeconds,
     issuer: config.jwt.issuer,
   });
 }

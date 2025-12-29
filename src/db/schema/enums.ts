@@ -2,9 +2,10 @@ import { pgEnum } from 'drizzle-orm/pg-core';
 
 // User roles
 export const userRoleEnum = pgEnum('user_role', [
-  'admin',      // Fractionate founder - full access
-  'manager',    // Future team members
-  'client',     // Client users with portal access
+  'super_admin', // System super administrator
+  'admin',       // Fractionate founder - full access
+  'manager',     // Future team members
+  'client',      // Client users with portal access
 ]);
 
 // Project stages

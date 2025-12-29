@@ -48,7 +48,7 @@ router.get(
   validate(getSessionSchema),
   async (req, res, next) => {
     try {
-      const result = await sessionService.getSessionWithDetails(req.params.id);
+      const result = await sessionService.getSessionWithDetails(req.params.id!);
 
       if (!result) {
         res.status(404).json({
@@ -79,7 +79,7 @@ router.post(
       const session = await sessionService.createSession(
         req.body,
         req.user!.id,
-        req.ip,
+        req.ip ?? undefined,
         req.requestId
       );
 
@@ -102,10 +102,10 @@ router.patch(
   async (req, res, next) => {
     try {
       const session = await sessionService.updateSession(
-        req.params.id,
+        req.params.id!,
         req.body,
         req.user!.id,
-        req.ip,
+        req.ip ?? undefined,
         req.requestId
       );
 
@@ -128,9 +128,9 @@ router.post(
   async (req, res, next) => {
     try {
       const session = await sessionService.startSession(
-        req.params.id,
+        req.params.id!,
         req.user!.id,
-        req.ip,
+        req.ip ?? undefined,
         req.requestId
       );
 
@@ -153,9 +153,9 @@ router.post(
   async (req, res, next) => {
     try {
       const session = await sessionService.endSession(
-        req.params.id,
+        req.params.id!,
         req.user!.id,
-        req.ip,
+        req.ip ?? undefined,
         req.requestId
       );
 
@@ -177,7 +177,7 @@ router.get(
   validate(getSessionSchema),
   async (req, res, next) => {
     try {
-      const transcripts = await sessionService.getTranscripts(req.params.id);
+      const transcripts = await sessionService.getTranscripts(req.params.id!);
       res.json(transcripts);
     } catch (error) {
       next(error);
@@ -197,7 +197,7 @@ router.post(
   async (req, res, next) => {
     try {
       const transcript = await sessionService.addTranscript(
-        req.params.id,
+        req.params.id!,
         req.body
       );
 
@@ -220,7 +220,7 @@ router.post(
   async (req, res, next) => {
     try {
       const result = await sessionService.processMessage(
-        req.params.id,
+        req.params.id!,
         req.body.content
       );
 
@@ -242,14 +242,14 @@ router.post(
   validate(getSessionSchema),
   async (req, res, next) => {
     try {
-      const summary = await sessionService.generateSessionSummary(req.params.id);
+      const summary = await sessionService.generateSessionSummary(req.params.id!);
 
       // Update session with summary
       await sessionService.updateSession(
-        req.params.id,
+        req.params.id!,
         { output: summary },
         req.user!.id,
-        req.ip,
+        req.ip ?? undefined,
         req.requestId
       );
 

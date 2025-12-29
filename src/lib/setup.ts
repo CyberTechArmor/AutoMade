@@ -1,5 +1,5 @@
 import { db, schema } from '../db/index.js';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { hashPassword } from './password.js';
 import { generateSecret, generatePassword, generateBackupCodes, generateQRCode } from './totp.js';
 import { logger } from './logger.js';
@@ -249,14 +249,16 @@ export async function getSystemStatus(): Promise<{
   const isSetup = await isSetupComplete();
   const config = await getSetupConfig();
 
-  const [{ count }] = await db
-    .select({ count: schema.users.id })
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
     .from(schema.users);
+
+  const userCount = result[0]?.count ?? 0;
 
   return {
     isSetup,
     config,
-    userCount: Number(count) || 0,
+    userCount: Number(userCount),
     version: process.env.npm_package_version || '0.1.0',
   };
 }

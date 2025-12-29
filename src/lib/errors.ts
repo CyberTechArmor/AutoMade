@@ -19,8 +19,12 @@ export class AppError extends Error {
 }
 
 export class ValidationError extends AppError {
-  constructor(details: Record<string, unknown>) {
-    super('VALIDATION_ERROR', 400, 'Validation failed', details);
+  constructor(messageOrDetails: string | Record<string, unknown>) {
+    if (typeof messageOrDetails === 'string') {
+      super('VALIDATION_ERROR', 400, messageOrDetails);
+    } else {
+      super('VALIDATION_ERROR', 400, 'Validation failed', messageOrDetails);
+    }
   }
 }
 

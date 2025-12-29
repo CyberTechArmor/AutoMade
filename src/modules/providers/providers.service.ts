@@ -382,7 +382,7 @@ export async function updateProvider(
     throw new Error('Failed to update provider');
   }
 
-  await audit.update(userId, 'service_provider', id, existing, updated, ip, requestId);
+  await audit.update(userId, 'service_provider', id, existing as unknown as Record<string, unknown>, updated as unknown as Record<string, unknown>, ip, requestId);
 
   logger.info({ providerId: id }, 'Service provider updated');
 
@@ -465,7 +465,7 @@ export async function testProvider(id: string): Promise<{
 
       case 'google_ai': {
         const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        const genAI = new GoogleGenerativeAI(provider.credentials.apiKey);
+        const genAI = new GoogleGenerativeAI(provider.credentials.apiKey!);
         const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
         await model.generateContent('Hi');
         break;
@@ -473,11 +473,13 @@ export async function testProvider(id: string): Promise<{
 
       case 'livekit': {
         const { RoomServiceClient } = await import('livekit-server-sdk');
-        const client = new RoomServiceClient(
-          provider.credentials.url,
-          provider.credentials.apiKey,
-          provider.credentials.apiSecret
-        );
+        const url = provider.credentials.url;
+        const apiKey = provider.credentials.apiKey;
+        const apiSecret = provider.credentials.apiSecret;
+        if (!url || !apiKey || !apiSecret) {
+          throw new Error('LiveKit credentials incomplete');
+        }
+        const client = new RoomServiceClient(url, apiKey, apiSecret);
         await client.listRooms();
         break;
       }

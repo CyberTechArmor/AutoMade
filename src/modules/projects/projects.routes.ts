@@ -46,13 +46,14 @@ router.get(
   validate(getProjectSchema),
   async (req, res, next) => {
     try {
-      const result = await projectService.getProjectWithDetails(req.params.id);
+      const result = await projectService.getProjectWithDetails(req.params.id!);
 
       if (!result) {
-        return res.status(404).json({
+        res.status(404).json({
           code: 'NOT_FOUND',
           message: 'Project not found',
         });
+        return;
       }
 
       res.json(result);
@@ -76,7 +77,7 @@ router.post(
       const project = await projectService.createProject(
         req.body,
         req.user!.id,
-        req.ip,
+        req.ip ?? undefined,
         req.requestId
       );
 
@@ -99,10 +100,10 @@ router.patch(
   async (req, res, next) => {
     try {
       const project = await projectService.updateProject(
-        req.params.id,
+        req.params.id!,
         req.body,
         req.user!.id,
-        req.ip,
+        req.ip ?? undefined,
         req.requestId
       );
 
@@ -125,9 +126,9 @@ router.delete(
   async (req, res, next) => {
     try {
       await projectService.deleteProject(
-        req.params.id,
+        req.params.id!,
         req.user!.id,
-        req.ip,
+        req.ip ?? undefined,
         req.requestId
       );
 
