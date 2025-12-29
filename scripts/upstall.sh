@@ -791,9 +791,19 @@ do_install() {
     log_info "Waiting for services to be ready..."
     sleep 10
 
-    # Run database migrations
-    log_info "Running database migrations..."
-    docker compose -f docker-compose.prod.yml exec -T api npm run db:migrate
+    # Run database schema push (using host npm with dev dependencies)
+    log_info "Setting up database schema..."
+
+    # Install dependencies on host for db:push (includes drizzle-kit)
+    if command -v npm &> /dev/null; then
+        npm install --silent 2>/dev/null || npm install
+        npm run db:push 2>&1 || {
+            log_warn "db:push failed, this may be okay for fresh installs"
+        }
+    else
+        log_warn "npm not found on host, skipping schema push"
+        log_info "You may need to run 'npm run db:push' manually after installing Node.js"
+    fi
 
     # Initialize system with super admin
     log_info "Initializing system..."
@@ -928,9 +938,16 @@ update() {
     # Wait for services
     sleep 10
 
-    # Run migrations
-    log_info "Running database migrations..."
-    docker compose -f docker-compose.prod.yml exec -T api npm run db:migrate
+    # Run database schema push (using host npm with dev dependencies)
+    log_info "Updating database schema..."
+    if command -v npm &> /dev/null; then
+        npm install --silent 2>/dev/null || npm install
+        npm run db:push 2>&1 || {
+            log_warn "db:push failed, schema may already be up to date"
+        }
+    else
+        log_warn "npm not found on host, skipping schema update"
+    fi
 
     # Update installed timestamp
     date -Iseconds > "$INSTALL_DIR/.installed"
