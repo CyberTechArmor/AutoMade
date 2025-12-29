@@ -699,7 +699,7 @@ EOF
 }
 
 # Install AutoMade
-install() {
+do_install() {
     log_info "Starting fresh installation..."
 
     # Create directories
@@ -1023,7 +1023,7 @@ main() {
                     update
                 fi
             else
-                install
+                do_install
             fi
             ;;
         *)
