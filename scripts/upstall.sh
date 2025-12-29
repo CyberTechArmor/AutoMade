@@ -1380,17 +1380,13 @@ do_update() {
         log_info "Will request new SSL certificate after update"
     fi
 
-    # Back up configuration
+    # Back up configuration (only .env, not nginx - nginx will be regenerated)
     log_info "Backing up local configuration..."
     local BACKUP_DIR="/tmp/automade_backup_$$"
     mkdir -p "$BACKUP_DIR"
 
     if [[ -f ".env" ]]; then
         cp .env "$BACKUP_DIR/"
-    fi
-
-    if [[ -d "nginx" ]]; then
-        cp -r nginx "$BACKUP_DIR/"
     fi
 
     # Reset and pull
@@ -1408,11 +1404,29 @@ do_update() {
     if [[ -f "$BACKUP_DIR/.env" ]]; then
         cp "$BACKUP_DIR/.env" .env
     fi
-    if [[ -d "$BACKUP_DIR/nginx" ]]; then
-        cp -r "$BACKUP_DIR/nginx" .
-    fi
 
     rm -rf "$BACKUP_DIR"
+
+    # Regenerate nginx config with latest settings (includes frontend proxy)
+    log_info "Regenerating Nginx configuration..."
+    load_existing_config || true
+
+    # Check if we have SSL certificates
+    local HAS_SSL=false
+    local CERT_VOLUME
+    CERT_VOLUME=$(docker volume ls --format '{{.Name}}' | grep -E 'nginx_certs|automade.*certs' | head -1) || true
+    if [[ -n "$CERT_VOLUME" ]]; then
+        # Check if live certificates exist
+        if docker run --rm -v "$CERT_VOLUME:/certs:ro" alpine test -d "/certs/live" 2>/dev/null; then
+            HAS_SSL=true
+        fi
+    fi
+
+    if [[ "$HAS_SSL" == "true" ]]; then
+        create_nginx_ssl_config
+    else
+        create_nginx_config
+    fi
 
     NEW_VERSION=$(get_current_version)
     log_info "New version: $NEW_VERSION"
@@ -1525,6 +1539,9 @@ do_uninstall_internal() {
         cd "$INSTALL_DIR"
         docker compose -f docker-compose.prod.yml down -v
     fi
+
+    # Change to safe directory before removing install dir
+    cd /tmp
 
     log_info "Removing installation..."
     rm -rf "$INSTALL_DIR"
