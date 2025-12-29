@@ -115,4 +115,5 @@ volumes:
 
 networks:
   automade_network:
+    name: automade_network
     driver: bridge
