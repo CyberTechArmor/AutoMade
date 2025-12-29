@@ -239,8 +239,9 @@ check_dependencies() {
 
         # Verify Docker was installed successfully
         if ! command -v docker &> /dev/null; then
-            log_error "Docker installation failed. Please install Docker manually:"
+            log_error "Docker installation failed. Please install Docker and Docker Compose manually:"
             log_info "  https://docs.docker.com/engine/install/"
+            log_info "  https://docs.docker.com/compose/install/"
             exit 1
         fi
     else
@@ -604,13 +605,21 @@ install() {
     # Verify Docker is available before starting services
     if ! command -v docker &> /dev/null; then
         log_error "Docker is not installed. Cannot start services."
-        log_info "Please install Docker manually: https://docs.docker.com/engine/install/"
+        log_info "Please install Docker and Docker Compose manually:"
+        log_info "  https://docs.docker.com/engine/install/"
+        log_info "  https://docs.docker.com/compose/install/"
         exit 1
     fi
 
     if ! docker info &> /dev/null; then
         log_error "Docker daemon is not running. Cannot start services."
         log_info "Try starting Docker with: systemctl start docker"
+        exit 1
+    fi
+
+    if ! docker compose version &> /dev/null; then
+        log_error "Docker Compose is not installed. Cannot start services."
+        log_info "Please install Docker Compose: https://docs.docker.com/compose/install/"
         exit 1
     fi
 
@@ -706,13 +715,21 @@ update() {
     # Verify Docker is available before updating services
     if ! command -v docker &> /dev/null; then
         log_error "Docker is not installed. Cannot update services."
-        log_info "Please install Docker manually: https://docs.docker.com/engine/install/"
+        log_info "Please install Docker and Docker Compose manually:"
+        log_info "  https://docs.docker.com/engine/install/"
+        log_info "  https://docs.docker.com/compose/install/"
         exit 1
     fi
 
     if ! docker info &> /dev/null; then
         log_error "Docker daemon is not running. Cannot update services."
         log_info "Try starting Docker with: systemctl start docker"
+        exit 1
+    fi
+
+    if ! docker compose version &> /dev/null; then
+        log_error "Docker Compose is not installed. Cannot update services."
+        log_info "Please install Docker Compose: https://docs.docker.com/compose/install/"
         exit 1
     fi
 
