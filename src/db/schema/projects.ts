@@ -7,8 +7,8 @@ import {
   integer,
   index,
 } from 'drizzle-orm/pg-core';
-import { clients } from './clients.js';
-import { projectStageEnum } from './enums.js';
+import { clients } from './clients';
+import { projectStageEnum } from './enums';
 
 export const projects = pgTable('projects', {
   id: uuid('id').primaryKey().defaultRandom(),

@@ -8,9 +8,9 @@ import {
   boolean,
   index,
 } from 'drizzle-orm/pg-core';
-import { projects } from './projects.js';
-import { users } from './users.js';
-import { documentStateEnum } from './enums.js';
+import { projects } from './projects';
+import { users } from './users';
+import { documentStateEnum } from './enums';
 
 /** Versioned reference documents for projects. */
 export const documents = pgTable('documents', {

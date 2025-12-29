@@ -8,9 +8,9 @@ import {
   boolean,
   index,
 } from 'drizzle-orm/pg-core';
-import { projects } from './projects.js';
-import { users } from './users.js';
-import { sessionStateEnum, sessionTypeEnum, llmProviderEnum } from './enums.js';
+import { projects } from './projects';
+import { users } from './users';
+import { sessionStateEnum, sessionTypeEnum, llmProviderEnum } from './enums';
 
 export const sessions = pgTable('sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
