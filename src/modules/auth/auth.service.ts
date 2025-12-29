@@ -35,6 +35,7 @@ interface AuthResult {
     email: string;
     displayName: string;
     role: string;
+    mfaEnabled: boolean;
   };
   accessToken: string;
   refreshToken: string;
@@ -191,6 +192,7 @@ async function completeLogin(
       email: user.email,
       displayName: user.displayName,
       role: user.role,
+      mfaEnabled: user.mfaEnabled,
     },
     accessToken,
     refreshToken,
@@ -346,6 +348,7 @@ export async function register(
       email: user.email,
       displayName: user.displayName,
       role: user.role,
+      mfaEnabled: user.mfaEnabled,
     },
     accessToken,
     refreshToken,
