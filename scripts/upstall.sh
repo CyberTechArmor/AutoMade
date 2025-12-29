@@ -632,11 +632,15 @@ services:
       - automade_network
 
   api:
-    image: ghcr.io/cybertecharmor/automade:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: automade_api
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      - NODE_ENV=production
     depends_on:
       postgres:
         condition: service_healthy
@@ -764,9 +768,9 @@ do_install() {
         exit 1
     fi
 
-    # Start services
-    log_info "Starting services..."
-    docker compose -f docker-compose.prod.yml pull
+    # Build and start services
+    log_info "Building and starting services..."
+    docker compose -f docker-compose.prod.yml build --pull
     docker compose -f docker-compose.prod.yml up -d
 
     # Wait for services to be ready
@@ -898,13 +902,13 @@ update() {
         fi
     fi
 
-    # Pull new Docker images
-    log_info "Pulling new Docker images..."
-    docker compose -f docker-compose.prod.yml pull
-
-    # Stop and restart services
-    log_info "Restarting services..."
+    # Stop services
+    log_info "Stopping services..."
     docker compose -f docker-compose.prod.yml down
+
+    # Rebuild and restart services
+    log_info "Rebuilding and restarting services..."
+    docker compose -f docker-compose.prod.yml build --pull
     docker compose -f docker-compose.prod.yml up -d
 
     # Wait for services
