@@ -28,8 +28,8 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await providerService.listProviders({
-        type: req.query.type as any,
-        service: req.query.service as any,
+        type: req.query.type as string | undefined,
+        service: req.query.service as string | undefined,
         enabled: req.query.enabled as 'true' | 'false' | undefined,
         page: Number(req.query.page) || 1,
         limit: Number(req.query.limit) || 20,

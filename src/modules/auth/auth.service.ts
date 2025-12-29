@@ -17,8 +17,6 @@ import {
   verifyCode as verifyTOTPCode,
   generateSetupData,
   generateBackupCodes,
-  generateSecret,
-  generateQRCode,
 } from '../../lib/totp.js';
 import { createHash } from 'node:crypto';
 import { sign, verify } from 'jsonwebtoken';

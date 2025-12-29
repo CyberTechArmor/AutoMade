@@ -3,10 +3,10 @@ import { eq } from 'drizzle-orm';
 import { hashPassword } from './password.js';
 import { generateSecret, generatePassword, generateBackupCodes, generateQRCode } from './totp.js';
 import { logger } from './logger.js';
-import { randomBytes, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { writeFile, readFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { dirname } from 'node:path';
 
 const SETUP_FILE = '/data/automade/.setup-complete';
 const CONFIG_FILE = '/data/automade/config.json';

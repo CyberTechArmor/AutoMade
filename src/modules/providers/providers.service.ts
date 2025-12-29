@@ -7,7 +7,6 @@ import { logger } from '../../lib/logger.js';
 import type {
   CreateProviderInput,
   UpdateProviderInput,
-  ListProvidersQuery,
 } from './providers.schemas.js';
 import { validateCredentials } from './providers.schemas.js';
 
@@ -59,7 +58,13 @@ function toPublicProvider(provider: Provider): PublicProvider {
 /**
  * List all providers
  */
-export async function listProviders(options: ListProvidersQuery): Promise<{
+export async function listProviders(options: {
+  type?: string;
+  service?: string;
+  enabled?: 'true' | 'false';
+  page: number;
+  limit: number;
+}): Promise<{
   data: PublicProvider[];
   pagination: {
     page: number;
@@ -71,11 +76,11 @@ export async function listProviders(options: ListProvidersQuery): Promise<{
   const conditions = [isNull(schema.serviceProviders.deletedAt)];
 
   if (options.type) {
-    conditions.push(eq(schema.serviceProviders.type, options.type));
+    conditions.push(eq(schema.serviceProviders.type, options.type as typeof schema.serviceProviders.type.enumValues[number]));
   }
 
   if (options.service) {
-    conditions.push(eq(schema.serviceProviders.service, options.service));
+    conditions.push(eq(schema.serviceProviders.service, options.service as typeof schema.serviceProviders.service.enumValues[number]));
   }
 
   if (options.enabled !== undefined) {
@@ -548,27 +553,7 @@ export async function logProviderUsage(
     ...data,
   });
 
-  // Update provider stats
-  const statsUpdate = data.success
-    ? sql`stats = jsonb_set(
-        jsonb_set(
-          COALESCE(stats, '{}'),
-          '{totalRequests}',
-          to_jsonb(COALESCE((stats->>'totalRequests')::int, 0) + 1)
-        ),
-        '{successfulRequests}',
-        to_jsonb(COALESCE((stats->>'successfulRequests')::int, 0) + 1)
-      )`
-    : sql`stats = jsonb_set(
-        jsonb_set(
-          COALESCE(stats, '{}'),
-          '{totalRequests}',
-          to_jsonb(COALESCE((stats->>'totalRequests')::int, 0) + 1)
-        ),
-        '{failedRequests}',
-        to_jsonb(COALESCE((stats->>'failedRequests')::int, 0) + 1)
-      )`;
-
+  // Update provider last used timestamp
   await db
     .update(schema.serviceProviders)
     .set({

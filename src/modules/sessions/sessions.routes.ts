@@ -51,10 +51,11 @@ router.get(
       const result = await sessionService.getSessionWithDetails(req.params.id);
 
       if (!result) {
-        return res.status(404).json({
+        res.status(404).json({
           code: 'NOT_FOUND',
           message: 'Session not found',
         });
+        return;
       }
 
       res.json(result);

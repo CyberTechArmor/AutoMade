@@ -4,7 +4,6 @@ import { config } from '../config/index.js';
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
-const SALT_LENGTH = 32;
 
 /**
  * Get encryption key from config or derive from secret

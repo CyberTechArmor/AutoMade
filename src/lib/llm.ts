@@ -439,7 +439,7 @@ export async function streamChat(
   const conversationMessages = messages.filter(m => m.role !== 'system');
 
   let fullContent = '';
-  let usage = { inputTokens: 0, outputTokens: 0 };
+  const usage = { inputTokens: 0, outputTokens: 0 };
 
   try {
     const stream = client.messages.stream({
