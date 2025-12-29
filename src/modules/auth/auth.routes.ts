@@ -5,6 +5,9 @@ import {
   registerSchema,
   refreshTokenSchema,
   changePasswordSchema,
+  mfaVerifySchema,
+  mfaSetupSchema,
+  backupCodeSchema,
 } from './auth.schemas.js';
 import * as authService from './auth.service.js';
 
@@ -185,6 +188,128 @@ router.get('/me', authenticate, async (req, res, next) => {
     }
 
     res.json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /auth/mfa/verify
+ * Verify TOTP code during login
+ */
+router.post('/mfa/verify', validate(mfaVerifySchema), async (req, res, next) => {
+  try {
+    const result = await authService.verifyMfa(
+      req.body,
+      req.ip ?? 'unknown',
+      req.headers['user-agent'] ?? 'unknown',
+      req.requestId
+    );
+
+    res.json({
+      user: result.user,
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      expiresIn: 900,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /auth/mfa/backup
+ * Use backup code during login
+ */
+router.post('/mfa/backup', validate(backupCodeSchema), async (req, res, next) => {
+  try {
+    const result = await authService.verifyBackupCode(
+      req.body,
+      req.ip ?? 'unknown',
+      req.headers['user-agent'] ?? 'unknown',
+      req.requestId
+    );
+
+    res.json({
+      user: result.user,
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      expiresIn: 900,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /auth/mfa/setup
+ * Begin MFA setup (requires authentication)
+ */
+router.post('/mfa/setup', authenticate, async (req, res, next) => {
+  try {
+    const result = await authService.beginMfaSetup(req.user!.id);
+
+    res.json({
+      secret: result.secret,
+      qrCode: result.qrCode,
+      uri: result.uri,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /auth/mfa/setup/complete
+ * Complete MFA setup by verifying code
+ */
+router.post(
+  '/mfa/setup/complete',
+  authenticate,
+  validate(mfaSetupSchema),
+  async (req, res, next) => {
+    try {
+      const result = await authService.completeMfaSetup(
+        req.user!.id,
+        req.body.code,
+        req.ip ?? 'unknown',
+        req.requestId
+      );
+
+      res.json({
+        enabled: result.enabled,
+        backupCodes: result.backupCodes,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /auth/mfa/disable
+ * Disable MFA (requires password confirmation)
+ */
+router.post('/mfa/disable', authenticate, async (req, res, next) => {
+  try {
+    const { password } = req.body;
+
+    if (!password) {
+      res.status(400).json({
+        code: 'VALIDATION_ERROR',
+        message: 'Password is required to disable MFA',
+      });
+      return;
+    }
+
+    await authService.disableMfa(
+      req.user!.id,
+      password,
+      req.ip ?? 'unknown',
+      req.requestId
+    );
+
+    res.json({ message: 'MFA disabled successfully' });
   } catch (error) {
     next(error);
   }

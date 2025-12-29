@@ -23,6 +23,18 @@ services:
       - nginx_webroot:/var/www/certbot:ro
     depends_on:
       - api
+      - frontend
+    networks:
+      - automade_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: automade_frontend
+    restart: unless-stopped
+    depends_on:
+      - api
     networks:
       - automade_network
 
