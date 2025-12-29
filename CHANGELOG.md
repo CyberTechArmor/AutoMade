@@ -8,32 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial project structure following Fractionate Development Standard
-- Database schema with Drizzle ORM for:
-  - Users and authentication
-  - Clients and organizations
-  - Projects with lifecycle management
-  - Discovery sessions with real-time transcription
-  - Documents with versioning
-  - Tracking entries for time and costs
-  - Learnings capture
-  - Audit logging for HIPAA compliance
-- Backend API with:
-  - Authentication (login, register, refresh tokens)
-  - Project management (CRUD operations)
-  - Session management with LLM facilitation
-- LLM integration with fallback chain (Claude → OpenAI → Google)
-- Docker configuration for deployment
-- GitHub Actions CI/CD pipeline
+- Service Providers admin API for managing AI and external service credentials
+  - Add/update/delete providers via admin panel
+  - Support for LLM (Anthropic, OpenAI, Google), voice, storage, WebRTC
+  - Test connection functionality
+  - Usage logging and statistics
+  - Encrypted credential storage
+- LLM service now uses database-stored provider keys with env var fallback
+- Encryption utility for sensitive data (AES-256-GCM)
 
 ### Changed
-- Socket.io now handles only notifications and UI state synchronization
-- Real-time voice/video moved to LiveKit for better WebRTC support
-
-### Security
-- MFA/TOTP support with backup codes
-- Two-step login flow (password → TOTP verification)
-- Auto-generated secure passwords for initial setup
+- LLM providers can be configured from admin panel instead of just environment variables
+- Provider priority determines fallback order
 
 ## [0.2.0] - 2024-12-29
 

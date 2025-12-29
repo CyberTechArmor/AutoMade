@@ -135,6 +135,23 @@ When AutoMade is first installed:
 
 ## API Endpoints
 
+### Service Providers (Admin)
+Manage AI and external service API keys from the admin panel:
+- `GET /api/providers` - List all service providers
+- `POST /api/providers` - Add a new provider (LLM, voice, storage, etc.)
+- `GET /api/providers/:id` - Get provider details
+- `PATCH /api/providers/:id` - Update provider settings/credentials
+- `DELETE /api/providers/:id` - Remove a provider
+- `POST /api/providers/:id/test` - Test provider connection
+
+Supported provider types:
+- **LLM**: Anthropic (Claude), OpenAI (GPT), Google AI (Gemini)
+- **Voice**: ElevenLabs
+- **WebRTC**: LiveKit
+- **Storage**: S3-compatible
+- **SMS**: Twilio
+- **Email**: SendGrid, SMTP
+
 ### Authentication
 - `POST /api/auth/login` - Authenticate user (step 1)
 - `POST /api/auth/mfa/verify` - Verify MFA code (step 2)

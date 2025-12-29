@@ -10,3 +10,4 @@ export * from './documents.js';
 export * from './tracking.js';
 export * from './learnings.js';
 export * from './audit.js';
+export * from './providers.js';
