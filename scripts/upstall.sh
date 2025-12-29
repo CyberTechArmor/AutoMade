@@ -859,18 +859,29 @@ restore_certificates() {
 
 # Obtain SSL certificate using certbot
 obtain_ssl_certificate() {
+    # First check if certificate already exists
+    local CERT_VOLUME
+    CERT_VOLUME=$(docker volume ls --format '{{.Name}}' | grep -E 'nginx_certs|automade.*certs' | head -1) || true
+
+    if [[ -n "$CERT_VOLUME" ]]; then
+        # Check if live certificate exists for this domain
+        if docker run --rm -v "$CERT_VOLUME:/certs:ro" alpine test -f "/certs/live/${DOMAIN}/fullchain.pem" 2>/dev/null; then
+            log_success "SSL certificate already exists for ${DOMAIN}"
+            return 0
+        fi
+    fi
+
     log_info "Obtaining SSL certificate from Let's Encrypt..."
 
     # Run certbot to obtain certificate
-    docker compose -f docker-compose.prod.yml run --rm certbot certonly \
+    if docker compose -f docker-compose.prod.yml run --rm certbot certonly \
         --webroot \
         --webroot-path=/var/www/certbot \
         --email "${ADMIN_EMAIL}" \
         --agree-tos \
         --no-eff-email \
-        -d "${DOMAIN}" 2>&1
-
-    if [[ $? -eq 0 ]]; then
+        --non-interactive \
+        -d "${DOMAIN}" 2>&1; then
         log_success "SSL certificate obtained successfully"
         return 0
     else
