@@ -444,6 +444,12 @@ check_dependencies() {
         log_info "Node.js is already installed ($(node --version))"
     fi
 
+    # Check for qrencode (optional, for TOTP QR codes)
+    if ! command -v qrencode &> /dev/null; then
+        log_info "Installing qrencode for TOTP QR codes..."
+        install_package qrencode 2>/dev/null || log_warn "qrencode not available, TOTP QR codes will not be shown"
+    fi
+
     log_success "All dependencies are available"
 }
 
@@ -761,6 +767,7 @@ services:
 
 networks:
   automade_network:
+    name: automade_network
     driver: bridge
 EOF
 
@@ -845,6 +852,11 @@ do_install() {
     log_info "Building and starting services..."
     docker compose -f docker-compose.prod.yml build --pull
     docker compose -f docker-compose.prod.yml up -d
+
+    # Fix volume permissions for API container (appuser needs write access)
+    log_info "Fixing volume permissions..."
+    sleep 3  # Wait for container to start
+    docker exec -u root automade_api chown -R appuser:nodejs /data/automade 2>/dev/null || log_warn "Could not fix volume permissions, may need manual fix"
 
     # Wait for services to be healthy
     log_info "Waiting for services to be ready..."
@@ -1001,8 +1013,21 @@ do_install() {
         echo -e "Password: ${GREEN}${PASSWORD}${NC}"
         echo ""
         echo -e "TOTP Secret: ${GREEN}${TOTP_SECRET}${NC}"
-        echo "(Add this to your authenticator app)"
         echo ""
+
+        # Generate TOTP QR code if qrencode is available
+        if command -v qrencode &> /dev/null; then
+            local TOTP_URI="otpauth://totp/AutoMade:${ADMIN_EMAIL}?secret=${TOTP_SECRET}&issuer=AutoMade"
+            echo -e "${BLUE}Scan this QR code with your authenticator app:${NC}"
+            echo ""
+            qrencode -t UTF8 "$TOTP_URI" 2>/dev/null || echo "(QR code generation failed - use the secret above)"
+            echo ""
+        else
+            echo "(Install qrencode to see QR code: apt install qrencode)"
+            echo "Add the secret above to your authenticator app manually"
+            echo ""
+        fi
+
         echo -e "${YELLOW}Backup Codes (save these securely):${NC}"
         echo "$SETUP_RESULT" | jq -r '.credentials.backupCodes[]'
         echo ""
@@ -1144,6 +1169,11 @@ update() {
     log_info "Rebuilding and restarting services..."
     docker compose -f docker-compose.prod.yml build --pull
     docker compose -f docker-compose.prod.yml up -d
+
+    # Fix volume permissions for API container
+    log_info "Fixing volume permissions..."
+    sleep 3
+    docker exec -u root automade_api chown -R appuser:nodejs /data/automade 2>/dev/null || log_warn "Could not fix volume permissions"
 
     # Wait for services to be healthy
     log_info "Waiting for services to be ready..."
