@@ -681,7 +681,7 @@ create_docker_compose() {
 
 services:
   traefik:
-    image: traefik:v3.2
+    image: traefik:v2.11
     container_name: automade_traefik
     restart: unless-stopped
     ports:
