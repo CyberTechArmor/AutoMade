@@ -38,6 +38,12 @@ DATA_DIR="${AUTOMADE_DATA_DIR:-/data/automade}"
 REPO_URL="${AUTOMADE_REPO_URL:-https://github.com/CyberTechArmor/AutoMade}"
 BRANCH="${AUTOMADE_BRANCH:-main}"
 
+# Track if we've already re-executed from the repo
+UPSTALL_FROM_REPO="${UPSTALL_FROM_REPO:-false}"
+
+# Save original arguments for re-execution
+ORIGINAL_ARGS=("$@")
+
 # Logging functions
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -723,6 +729,14 @@ do_install() {
     fi
 
     cd "$INSTALL_DIR"
+
+    # Re-execute from the repo version if we haven't already
+    # This ensures we run the latest version of the script after updating
+    if [[ "$UPSTALL_FROM_REPO" != "true" ]] && [[ -f "$INSTALL_DIR/scripts/upstall.sh" ]]; then
+        log_info "Running updated script from repository..."
+        export UPSTALL_FROM_REPO=true
+        exec bash "$INSTALL_DIR/scripts/upstall.sh" "${ORIGINAL_ARGS[@]:-install}"
+    fi
 
     # Prompt for setup info
     prompt_setup_info
