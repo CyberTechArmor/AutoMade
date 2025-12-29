@@ -54,7 +54,7 @@ AutoMade is a self-hosted web application designed for Fractionate to:
 | Validation | Zod |
 | LLM | Claude (primary), OpenAI, Google AI (fallbacks) |
 | WebRTC | LiveKit |
-| Deployment | Docker, Traefik, Let's Encrypt |
+| Deployment | Docker, Nginx, Let's Encrypt |
 
 ## Quick Start
 
@@ -64,7 +64,7 @@ The easiest way to install AutoMade is using the upstall script:
 
 ```bash
 # Download and run the installation script
-curl -fsSL https://raw.githubusercontent.com/fractionate/automade/main/scripts/upstall.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/CyberTechArmor/AutoMade/main/scripts/upstall.sh | sudo bash
 ```
 
 The script will prompt you for:
@@ -74,7 +74,7 @@ The script will prompt you for:
 The script will:
 1. Install all dependencies (Docker, etc.)
 2. Generate secure secrets
-3. Configure Traefik with Let's Encrypt SSL
+3. Configure Nginx with Let's Encrypt SSL
 4. Create the super admin account with auto-generated credentials
 5. Display the login credentials (save them securely!)
 
@@ -89,8 +89,8 @@ sudo ./scripts/upstall.sh update
 
 ```bash
 # Clone repository
-git clone https://github.com/fractionate/automade.git
-cd automade
+git clone https://github.com/CyberTechArmor/AutoMade.git
+cd AutoMade
 
 # Copy environment template
 cp .env.example .env
@@ -229,7 +229,7 @@ automade/
 ├── docs/                # Documentation
 │   └── adr/             # Architecture Decision Records
 ├── docker-compose.yml       # Base Docker config
-├── docker-compose.prod.yml  # Production with Traefik
+├── docker-compose.prod.yml  # Production with Nginx + SSL
 ├── docker-compose.dev.yml   # Development config
 └── Dockerfile               # Multi-stage Docker build
 ```
