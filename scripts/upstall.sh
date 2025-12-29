@@ -320,17 +320,17 @@ prompt_setup_info() {
     echo -e "${GREEN}========================================${NC}"
     echo ""
 
-    # Domain
+    # Domain - read from /dev/tty for curl pipe compatibility
     while [[ -z "${DOMAIN:-}" ]]; do
-        read -rp "Enter your domain (e.g., automade.example.com): " DOMAIN
+        read -rp "Enter your domain (e.g., automade.example.com): " DOMAIN < /dev/tty
         if [[ -z "$DOMAIN" ]]; then
             log_warn "Domain is required"
         fi
     done
 
-    # Admin email
+    # Admin email - read from /dev/tty for curl pipe compatibility
     while [[ -z "${ADMIN_EMAIL:-}" ]]; do
-        read -rp "Enter admin email (super admin, used for Let's Encrypt): " ADMIN_EMAIL
+        read -rp "Enter admin email (super admin, used for Let's Encrypt): " ADMIN_EMAIL < /dev/tty
         if [[ -z "$ADMIN_EMAIL" ]]; then
             log_warn "Admin email is required"
         elif ! [[ "$ADMIN_EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
@@ -345,7 +345,7 @@ prompt_setup_info() {
     log_info "  Admin Email: $ADMIN_EMAIL"
     echo ""
 
-    read -rp "Is this correct? (y/N): " CONFIRM
+    read -rp "Is this correct? (y/N): " CONFIRM < /dev/tty
     if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
         log_info "Setup cancelled"
         exit 0
@@ -731,7 +731,7 @@ status() {
 # Uninstall
 uninstall() {
     log_warn "This will remove AutoMade and all data!"
-    read -rp "Are you sure? Type 'yes' to confirm: " CONFIRM
+    read -rp "Are you sure? Type 'yes' to confirm: " CONFIRM < /dev/tty
 
     if [[ "$CONFIRM" != "yes" ]]; then
         log_info "Uninstall cancelled"
@@ -747,7 +747,7 @@ uninstall() {
     log_info "Removing installation..."
     rm -rf "$INSTALL_DIR"
 
-    read -rp "Remove data directory ($DATA_DIR)? (y/N): " REMOVE_DATA
+    read -rp "Remove data directory ($DATA_DIR)? (y/N): " REMOVE_DATA < /dev/tty
     if [[ "$REMOVE_DATA" =~ ^[Yy]$ ]]; then
         rm -rf "$DATA_DIR"
         log_success "Data removed"
@@ -803,7 +803,7 @@ main() {
             check_dependencies
             if is_installed; then
                 log_info "AutoMade is already installed"
-                read -rp "Would you like to update? (y/N): " DO_UPDATE
+                read -rp "Would you like to update? (y/N): " DO_UPDATE < /dev/tty
                 if [[ "$DO_UPDATE" =~ ^[Yy]$ ]]; then
                     update
                 fi
