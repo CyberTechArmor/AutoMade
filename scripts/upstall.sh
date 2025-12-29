@@ -1044,11 +1044,43 @@ update() {
     CURRENT_VERSION=$(get_current_version)
     log_info "Current version: $CURRENT_VERSION"
 
+    # Back up generated files that may conflict with repo
+    log_info "Backing up local configuration..."
+    local BACKUP_DIR="/tmp/automade_backup_$$"
+    mkdir -p "$BACKUP_DIR"
+
+    # Save the generated docker-compose.prod.yml (has domain-specific config)
+    if [[ -f "docker-compose.prod.yml" ]]; then
+        cp docker-compose.prod.yml "$BACKUP_DIR/"
+    fi
+
+    # Save traefik config
+    if [[ -d "traefik" ]]; then
+        cp -r traefik "$BACKUP_DIR/"
+    fi
+
+    # Reset local changes to allow clean pull
+    log_info "Resetting local changes for clean update..."
+    git reset --hard HEAD 2>/dev/null || true
+    git clean -fd 2>/dev/null || true
+
     # Pull latest changes
     log_info "Pulling latest changes..."
     git fetch origin "$BRANCH"
     git checkout "$BRANCH"
     git pull origin "$BRANCH"
+
+    # Restore backed up generated files
+    log_info "Restoring local configuration..."
+    if [[ -f "$BACKUP_DIR/docker-compose.prod.yml" ]]; then
+        cp "$BACKUP_DIR/docker-compose.prod.yml" docker-compose.prod.yml
+    fi
+    if [[ -d "$BACKUP_DIR/traefik" ]]; then
+        cp -r "$BACKUP_DIR/traefik" .
+    fi
+
+    # Clean up backup
+    rm -rf "$BACKUP_DIR"
 
     NEW_VERSION=$(get_current_version)
     log_info "New version: $NEW_VERSION"
