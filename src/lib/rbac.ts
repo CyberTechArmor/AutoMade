@@ -1,0 +1,83 @@
+export const ROLES = {
+  ADMIN: 'admin',
+  MANAGER: 'manager',
+  CLIENT: 'client',
+} as const;
+
+export type Role = typeof ROLES[keyof typeof ROLES];
+
+// Permission definitions
+export const PERMISSIONS = {
+  // User management
+  'users:create': [ROLES.ADMIN],
+  'users:read': [ROLES.ADMIN, ROLES.MANAGER],
+  'users:read:own': [ROLES.ADMIN, ROLES.MANAGER, ROLES.CLIENT],
+  'users:update': [ROLES.ADMIN],
+  'users:update:own': [ROLES.ADMIN, ROLES.MANAGER, ROLES.CLIENT],
+  'users:delete': [ROLES.ADMIN],
+
+  // Client management
+  'clients:create': [ROLES.ADMIN, ROLES.MANAGER],
+  'clients:read': [ROLES.ADMIN, ROLES.MANAGER],
+  'clients:read:own': [ROLES.ADMIN, ROLES.MANAGER, ROLES.CLIENT],
+  'clients:update': [ROLES.ADMIN, ROLES.MANAGER],
+  'clients:delete': [ROLES.ADMIN],
+
+  // Project management
+  'projects:create': [ROLES.ADMIN, ROLES.MANAGER],
+  'projects:read': [ROLES.ADMIN, ROLES.MANAGER],
+  'projects:read:own': [ROLES.ADMIN, ROLES.MANAGER, ROLES.CLIENT],
+  'projects:update': [ROLES.ADMIN, ROLES.MANAGER],
+  'projects:delete': [ROLES.ADMIN],
+
+  // Session management
+  'sessions:create': [ROLES.ADMIN, ROLES.MANAGER],
+  'sessions:read': [ROLES.ADMIN, ROLES.MANAGER],
+  'sessions:read:own': [ROLES.ADMIN, ROLES.MANAGER, ROLES.CLIENT],
+  'sessions:update': [ROLES.ADMIN, ROLES.MANAGER],
+  'sessions:delete': [ROLES.ADMIN],
+  'sessions:facilitate': [ROLES.ADMIN, ROLES.MANAGER],
+
+  // Document management
+  'documents:create': [ROLES.ADMIN, ROLES.MANAGER],
+  'documents:read': [ROLES.ADMIN, ROLES.MANAGER],
+  'documents:read:published': [ROLES.ADMIN, ROLES.MANAGER, ROLES.CLIENT],
+  'documents:update': [ROLES.ADMIN, ROLES.MANAGER],
+  'documents:delete': [ROLES.ADMIN],
+  'documents:publish': [ROLES.ADMIN, ROLES.MANAGER],
+
+  // Tracking
+  'tracking:create': [ROLES.ADMIN, ROLES.MANAGER],
+  'tracking:read': [ROLES.ADMIN, ROLES.MANAGER],
+  'tracking:read:own': [ROLES.ADMIN, ROLES.MANAGER, ROLES.CLIENT],
+  'tracking:update': [ROLES.ADMIN, ROLES.MANAGER],
+  'tracking:delete': [ROLES.ADMIN],
+
+  // Learnings
+  'learnings:create': [ROLES.ADMIN, ROLES.MANAGER],
+  'learnings:read': [ROLES.ADMIN, ROLES.MANAGER],
+  'learnings:update': [ROLES.ADMIN, ROLES.MANAGER],
+  'learnings:delete': [ROLES.ADMIN],
+
+  // Audit logs
+  'audit:read': [ROLES.ADMIN],
+
+  // System settings
+  'settings:read': [ROLES.ADMIN, ROLES.MANAGER],
+  'settings:update': [ROLES.ADMIN],
+} as const;
+
+export type Permission = keyof typeof PERMISSIONS;
+
+export function hasPermission(role: Role, permission: Permission): boolean {
+  const allowedRoles = PERMISSIONS[permission];
+  return allowedRoles?.includes(role as never) ?? false;
+}
+
+export function requiresOwnership(permission: Permission): boolean {
+  return permission.endsWith(':own') || permission.endsWith(':published');
+}
+
+export function getBasePermission(permission: Permission): string {
+  return permission.replace(/:own$/, '').replace(/:published$/, '');
+}
