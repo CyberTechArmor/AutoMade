@@ -709,6 +709,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - ${DATA_DIR}:/data/automade
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.api.rule=Host(\`${DOMAIN}\`)"

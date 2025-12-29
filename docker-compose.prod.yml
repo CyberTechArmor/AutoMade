@@ -50,6 +50,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - automade_data:/data/automade
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.api.rule=Host(`${DOMAIN}`)"
@@ -109,6 +111,7 @@ volumes:
   postgres_data:
   redis_data:
   traefik_acme:
+  automade_data:
 
 networks:
   automade_network:
