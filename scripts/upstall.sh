@@ -456,7 +456,22 @@ check_dependencies() {
 
 # Check if AutoMade is already installed
 is_installed() {
-    [[ -f "$INSTALL_DIR/.installed" ]]
+    # Check for .installed marker file
+    if [[ -f "$INSTALL_DIR/.installed" ]]; then
+        return 0
+    fi
+
+    # Fallback: check if docker containers are running
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q 'automade_api'; then
+        return 0
+    fi
+
+    # Fallback: check if docker-compose.prod.yml and .env exist (partial install)
+    if [[ -f "$INSTALL_DIR/docker-compose.prod.yml" ]] && [[ -f "$INSTALL_DIR/.env" ]]; then
+        return 0
+    fi
+
+    return 1
 }
 
 # Get current version
@@ -1135,56 +1150,65 @@ do_install() {
 run_db_push() {
     local POSTGRES_PASSWORD=""
     if [[ -f "$INSTALL_DIR/.env" ]]; then
-        POSTGRES_PASSWORD=$(grep '^POSTGRES_PASSWORD=' "$INSTALL_DIR/.env" | cut -d'=' -f2-)
+        POSTGRES_PASSWORD=$(grep '^POSTGRES_PASSWORD=' "$INSTALL_DIR/.env" | cut -d'=' -f2-) || true
     fi
 
     if [[ -z "$POSTGRES_PASSWORD" ]]; then
         log_warn "Could not read POSTGRES_PASSWORD from .env, skipping schema update"
-        return 1
+        return 0  # Don't fail the entire install
     fi
 
     if command -v npm &> /dev/null; then
-        npm install --silent 2>/dev/null || npm install
+        npm install --silent 2>/dev/null || npm install || true
 
         local DB_HOST="localhost"
         local DB_PORT="5432"
 
-        local MAPPED_PORT=$(docker port automade_postgres 5432 2>/dev/null | cut -d: -f2 | head -1)
+        local MAPPED_PORT
+        MAPPED_PORT=$(docker port automade_postgres 5432 2>/dev/null | cut -d: -f2 | head -1) || true
         if [[ -n "$MAPPED_PORT" ]]; then
             DB_PORT="$MAPPED_PORT"
             log_info "Using exposed postgres port: $DB_PORT"
         else
-            DB_HOST=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' automade_postgres 2>/dev/null || echo "")
+            DB_HOST=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' automade_postgres 2>/dev/null) || true
             if [[ -z "$DB_HOST" ]]; then
                 DB_HOST="postgres"
             fi
         fi
 
         log_info "Pushing database schema (host: $DB_HOST:$DB_PORT)..."
-        DATABASE_URL="postgresql://automade:${POSTGRES_PASSWORD}@${DB_HOST}:${DB_PORT}/automade" npm run db:push 2>&1 || {
+        if DATABASE_URL="postgresql://automade:${POSTGRES_PASSWORD}@${DB_HOST}:${DB_PORT}/automade" npm run db:push 2>&1; then
+            log_success "Database schema pushed successfully"
+        else
             log_warn "db:push with host connection failed, trying via docker network..."
-            run_db_push_docker "$POSTGRES_PASSWORD"
-        }
+            run_db_push_docker "$POSTGRES_PASSWORD" || true
+        fi
     else
         log_warn "npm not found on host, running db:push via Docker..."
-        run_db_push_docker "$POSTGRES_PASSWORD"
+        run_db_push_docker "$POSTGRES_PASSWORD" || true
     fi
+
+    return 0  # Always return success to continue installation
 }
 
 # Run db:push via Docker
 run_db_push_docker() {
     local POSTGRES_PASSWORD="$1"
-    local NETWORK_NAME=$(docker network ls --format '{{.Name}}' | grep -E 'automade.*network' | head -1)
+    local NETWORK_NAME
+    NETWORK_NAME=$(docker network ls --format '{{.Name}}' | grep -E 'automade.*network' | head -1) || true
     if [[ -z "$NETWORK_NAME" ]]; then
         NETWORK_NAME="automade_automade_network"
     fi
-    docker run --rm --network "$NETWORK_NAME" \
+    if docker run --rm --network "$NETWORK_NAME" \
         -v "$INSTALL_DIR:/app" \
         -w /app \
         -e "DATABASE_URL=postgresql://automade:${POSTGRES_PASSWORD}@postgres:5432/automade" \
-        node:22-alpine sh -c "npm install --silent && npx drizzle-kit push --force" 2>&1 || {
-            log_warn "db:push failed, schema may already be up to date"
-        }
+        node:22-alpine sh -c "npm install --silent && npx tsx node_modules/drizzle-kit/bin.cjs push --force" 2>&1; then
+        log_success "Database schema pushed successfully via Docker"
+    else
+        log_warn "db:push failed, schema may already be up to date or needs manual review"
+    fi
+    return 0  # Always return success
 }
 
 # Initialize system with super admin
@@ -1226,7 +1250,7 @@ initialize_system() {
         " 2>&1) || true
 
     if [[ -n "$SETUP_RESULT" ]]; then
-        SETUP_RESULT=$(echo "$SETUP_RESULT" | grep -E '^\{.*\}$' | tail -1)
+        SETUP_RESULT=$(echo "$SETUP_RESULT" | grep -E '^\{.*\}$' | tail -1) || true
     fi
 }
 
