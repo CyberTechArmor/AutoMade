@@ -7,8 +7,8 @@ import {
   boolean,
   index,
 } from 'drizzle-orm/pg-core';
-import { projects } from './projects';
-import { users } from './users';
+import { projects } from './projects.js';
+import { users } from './users.js';
 
 /** Learnings and institutional knowledge capture. */
 export const learnings = pgTable('learnings', {

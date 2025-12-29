@@ -6,7 +6,7 @@ import {
   jsonb,
   index,
 } from 'drizzle-orm/pg-core';
-import { users } from './users';
+import { users } from './users.js';
 
 export const clients = pgTable('clients', {
   id: uuid('id').primaryKey().defaultRandom(),

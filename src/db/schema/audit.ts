@@ -6,7 +6,7 @@ import {
   jsonb,
   index,
 } from 'drizzle-orm/pg-core';
-import { auditActionEnum } from './enums';
+import { auditActionEnum } from './enums.js';
 
 /** Audit log for HIPAA compliance - append-only, hash-chained. */
 export const auditLogs = pgTable('audit_logs', {
