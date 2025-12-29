@@ -859,7 +859,7 @@ restore_certificates() {
 
 # Obtain SSL certificate using certbot
 obtain_ssl_certificate() {
-    # First check if certificate already exists
+    # First check if certificate already exists in volume
     local CERT_VOLUME
     CERT_VOLUME=$(docker volume ls --format '{{.Name}}' | grep -E 'nginx_certs|automade.*certs' | head -1) || true
 
@@ -869,6 +869,12 @@ obtain_ssl_certificate() {
             log_success "SSL certificate already exists for ${DOMAIN}"
             return 0
         fi
+    fi
+
+    # Also check if there's a backup waiting to be restored (during reinstall)
+    if [[ -d "$CERT_BACKUP_DIR/live/${DOMAIN}" ]]; then
+        log_info "SSL certificate backup found, will be restored after install"
+        return 0
     fi
 
     log_info "Obtaining SSL certificate from Let's Encrypt..."
