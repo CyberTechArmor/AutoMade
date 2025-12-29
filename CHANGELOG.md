@@ -1,93 +1,66 @@
 # Changelog
 
-All notable changes to the Fractionate Development Standard will be documented in this file.
+All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
----
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
 ### Added
-- [Feature or document to be added]
+- Service Providers admin API for managing AI and external service credentials
+  - Add/update/delete providers via admin panel
+  - Support for LLM (Anthropic, OpenAI, Google), voice, storage, WebRTC
+  - Test connection functionality
+  - Usage logging and statistics
+  - Encrypted credential storage
+- LLM service now uses database-stored provider keys with env var fallback
+- Encryption utility for sensitive data (AES-256-GCM)
 
 ### Changed
-- [Modification to existing standard]
+- LLM providers can be configured from admin panel instead of just environment variables
+- Provider priority determines fallback order
 
-### Deprecated
-- [Feature or tool being phased out]
-
-### Removed
-- [Feature or tool removed from standard]
-
----
-
-## [1.0.0] - 2024-12-28
+## [0.2.0] - 2024-12-29
 
 ### Added
+- LiveKit integration for real-time voice/video sessions
+  - Room creation and management
+  - Participant token generation
+  - Session room status tracking
+- TOTP-based multi-factor authentication
+  - QR code generation for authenticator apps
+  - Backup codes for account recovery
+  - MFA setup and verification flow
+- Upstall script for easy installation and updates
+  - Single script for fresh install or update
+  - Automatic secret generation
+  - Let's Encrypt SSL certificate setup
+  - Super admin account creation with auto-generated credentials
+- Traefik reverse proxy configuration
+  - Automatic HTTPS with Let's Encrypt
+  - Security headers (HSTS, X-Frame-Options, etc.)
+  - Docker-based deployment
+- Setup service for initial system configuration
+  - Domain and admin email configuration
+  - Auto-generated password and TOTP secret
+  - Backup codes generation
 
-**Core Documents**
-- `00-OVERVIEW.md` — Development standard overview, principles, quick reference
-- `01-DISCOVERY.md` — Requirements gathering process, personas, success criteria
-- `02-DESIGN.md` — API-first design, data modeling, compliance mapping
-- `03-STACK.md` — Approved technology stack, evaluation criteria
-- `04-BUILD.md` — Code structure, patterns, testing standards
-- `05-DEPLOY.md` — Container strategy, CI/CD, environments, scaling
-- `06-OPERATE.md` — Observability, maintenance, incident response
-- `07-SECURITY.md` — Authentication, encryption, compliance checklists
+### Changed
+- Socket.io refactored to handle only:
+  - Real-time notifications
+  - UI state synchronization across devices
+  - Presence indicators
+  - Typing indicators
+- Authentication service updated for MFA flow
+- Docker Compose split into development and production configurations
 
-**Templates**
-- `TEMPLATES/project-init.md` — Project initialization guide with all boilerplate
-- `TEMPLATES/tool-evaluation.md` — Tool evaluation checklist
-- `TEMPLATES/requirements-doc.md` — Requirements document template
+### Security
+- Passwords auto-generated with 20+ character length
+- TOTP secrets stored securely
+- Backup codes hashed with SHA-256
+- Let's Encrypt for automatic SSL certificates
 
-**Approved Stack (Initial)**
-- Runtime: Node.js 22 LTS, TypeScript 5.x
-- Backend: Express, Zod, Drizzle, Socket.io
-- Database: PostgreSQL 16, Redis 7
-- Storage: S3-compatible (Garage default)
-- Frontend: React 18, Vite, Tailwind
-- Infrastructure: Docker, Docker Swarm, Traefik, GHCR
-- Development: GitHub Actions, ESLint, Vitest
-- Observability: Pino (logging), Prometheus/Grafana (metrics)
-- Security: JWT + Refresh tokens, Argon2id, libsodium
+## [0.1.0] - 2024-12-29
 
-**Compliance Support**
-- HIPAA Security Rule checklist
-- GDPR requirements checklist
-- SOC 2 Trust Services Criteria mapping
-- Audit logging specification with hash chaining
-
----
-
-## Version Numbering
-
-This standard uses semantic versioning:
-
-- **Major (X.0.0)**: Breaking changes to process, significant stack changes, removed tools
-- **Minor (0.X.0)**: New documents, new approved tools, expanded guidance
-- **Patch (0.0.X)**: Typo fixes, clarifications, minor template updates
-
----
-
-## Review Schedule
-
-This standard is reviewed quarterly. Next review: **March 2025**
-
-Review considerations:
-- Tools nearing end-of-life
-- New tools gaining adoption
-- Lessons learned from projects
-- Security vulnerabilities requiring stack changes
-- Industry standard updates (Node LTS, etc.)
-
----
-
-## How to Propose Changes
-
-1. Create an issue in the dev-standard repository describing the change
-2. Include rationale and impact assessment
-3. For tool changes, complete the Tool Evaluation Template
-4. Submit PR with proposed changes
-5. Review period: 1 week for minor changes, 2 weeks for major
-6. Approval required from at least one other team member
+- Project initialized based on Fractionate Discovery Specification
