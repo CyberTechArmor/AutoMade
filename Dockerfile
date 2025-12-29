@@ -24,7 +24,6 @@ RUN adduser --system --uid 1001 appuser
 # Copy necessary files
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/src/db/migrations ./src/db/migrations
 
 # Install production dependencies only
 RUN npm ci --omit=dev
