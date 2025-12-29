@@ -871,10 +871,24 @@ obtain_ssl_certificate() {
         fi
     fi
 
-    # Also check if there's a backup waiting to be restored (during reinstall)
+    # Check if there's a backup waiting to be restored (during reinstall)
     if [[ -d "$CERT_BACKUP_DIR/live/${DOMAIN}" ]]; then
-        log_info "SSL certificate backup found, will be restored after install"
-        return 0
+        log_info "SSL certificate backup found, restoring now..."
+
+        # Ensure volume exists
+        if [[ -z "$CERT_VOLUME" ]]; then
+            CERT_VOLUME="automade_nginx_certs"
+            docker volume create "$CERT_VOLUME" >/dev/null 2>&1 || true
+        fi
+
+        # Restore certificates from backup to volume immediately
+        if docker run --rm -v "$CERT_VOLUME:/certs" -v "$CERT_BACKUP_DIR:/backup:ro" alpine \
+            sh -c "cp -a /backup/. /certs/" 2>/dev/null; then
+            log_success "SSL certificate restored from backup"
+            return 0
+        else
+            log_warn "Failed to restore certificate backup"
+        fi
     fi
 
     log_info "Obtaining SSL certificate from Let's Encrypt..."
