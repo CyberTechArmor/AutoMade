@@ -19,7 +19,7 @@ import {
   generateBackupCodes,
 } from '../../lib/totp.js';
 import { createHash } from 'node:crypto';
-import { sign, verify } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import { config } from '../../config/index.js';
 import type {
   LoginInput,
@@ -55,7 +55,7 @@ type LoginResult = AuthResult | MfaRequiredResult;
 const MFA_TOKEN_EXPIRY = '5m';
 
 function generateMfaToken(userId: string): string {
-  return sign(
+  return jwt.sign(
     { userId, purpose: 'mfa' },
     config.jwt.secret,
     { expiresIn: MFA_TOKEN_EXPIRY }
@@ -64,7 +64,7 @@ function generateMfaToken(userId: string): string {
 
 function verifyMfaToken(token: string): { userId: string } | null {
   try {
-    const decoded = verify(token, config.jwt.secret) as { userId: string; purpose: string };
+    const decoded = jwt.verify(token, config.jwt.secret) as { userId: string; purpose: string };
     if (decoded.purpose !== 'mfa') {
       return null;
     }
