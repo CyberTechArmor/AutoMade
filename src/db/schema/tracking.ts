@@ -8,9 +8,9 @@ import {
   boolean,
   index,
 } from 'drizzle-orm/pg-core';
-import { projects } from './projects';
-import { users } from './users';
-import { trackingTypeEnum, costSourceEnum } from './enums';
+import { projects } from './projects.js';
+import { users } from './users.js';
+import { trackingTypeEnum, costSourceEnum } from './enums.js';
 
 /** Time and progress tracking entries. */
 export const trackingEntries = pgTable('tracking_entries', {

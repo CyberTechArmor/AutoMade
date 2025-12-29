@@ -9,7 +9,7 @@ import {
   index,
   pgEnum,
 } from 'drizzle-orm/pg-core';
-import { users } from './users';
+import { users } from './users.js';
 
 /**
  * Service provider types
