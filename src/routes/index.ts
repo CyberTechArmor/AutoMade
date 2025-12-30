@@ -4,6 +4,7 @@ import clientRoutes from '../modules/clients/clients.routes.js';
 import projectRoutes from '../modules/projects/projects.routes.js';
 import sessionRoutes from '../modules/sessions/sessions.routes.js';
 import providerRoutes from '../modules/providers/providers.routes.js';
+import docsRoutes from './docs.routes.js';
 
 const router = Router();
 
@@ -15,6 +16,9 @@ router.get('/health', (_req, res) => {
     service: 'automade-api',
   });
 });
+
+// API Documentation (Swagger UI)
+router.use('/docs', docsRoutes);
 
 // API routes
 router.use('/auth', authRoutes);
