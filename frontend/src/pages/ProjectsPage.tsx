@@ -3,26 +3,27 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { api } from '../services/api';
 import type { Project, Client, ProjectStage } from '../types';
+import { Plus, FolderKanban, Clock, Calendar, X, Filter } from 'lucide-react';
 
 const STAGES: { value: ProjectStage | ''; label: string }[] = [
   { value: '', label: 'All Stages' },
   { value: 'discovery', label: 'Discovery' },
-  { value: 'design', label: 'Design' },
+  { value: 'proposal', label: 'Proposal' },
+  { value: 'contract', label: 'Contract' },
   { value: 'development', label: 'Development' },
-  { value: 'deployment', label: 'Deployment' },
-  { value: 'operation', label: 'Operation' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'on_hold', label: 'On Hold' },
+  { value: 'delivery', label: 'Delivery' },
+  { value: 'maintenance', label: 'Maintenance' },
+  { value: 'closed', label: 'Closed' },
 ];
 
-const STAGE_COLORS: Record<ProjectStage, string> = {
-  discovery: 'bg-purple-100 text-purple-800',
-  design: 'bg-blue-100 text-blue-800',
-  development: 'bg-yellow-100 text-yellow-800',
-  deployment: 'bg-orange-100 text-orange-800',
-  operation: 'bg-green-100 text-green-800',
-  completed: 'bg-gray-100 text-gray-800',
-  on_hold: 'bg-red-100 text-red-800',
+const STAGE_BADGES: Record<ProjectStage, string> = {
+  discovery: 'badge-info',
+  proposal: 'badge-info',
+  contract: 'badge-warning',
+  development: 'badge-warning',
+  delivery: 'badge-success',
+  maintenance: 'badge-success',
+  closed: 'badge-neutral',
 };
 
 export default function ProjectsPage() {
@@ -94,22 +95,27 @@ export default function ProjectsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
-            <p className="text-gray-600">Manage your project lifecycle</p>
+            <h1 className="text-2xl font-bold text-white">Projects</h1>
+            <p className="text-neon-text-secondary">Manage your project lifecycle</p>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="btn btn-primary"
+            className="btn btn-primary flex items-center gap-2"
             disabled={clients.length === 0}
           >
+            <Plus className="w-4 h-4" />
             New Project
           </button>
         </div>
 
         {/* Filters */}
         <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <Filter className="w-4 h-4 text-neon-text-muted" />
+            <span className="text-sm font-medium text-neon-text-secondary">Filters</span>
+          </div>
           <div className="flex gap-4">
-            <div>
+            <div className="flex-1">
               <label className="label">Client</label>
               <select
                 value={clientIdFilter}
@@ -124,7 +130,7 @@ export default function ProjectsPage() {
                 ))}
               </select>
             </div>
-            <div>
+            <div className="flex-1">
               <label className="label">Stage</label>
               <select
                 value={stageFilter}
@@ -143,34 +149,36 @@ export default function ProjectsPage() {
 
         {/* Error */}
         {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-            {error}
+          <div className="p-4 bg-neon-error/10 border border-neon-error/20 rounded-lg text-neon-error flex items-center justify-between">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 
         {/* Loading */}
         {loading && (
           <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-neon-cyan border-t-transparent" />
           </div>
         )}
 
         {/* Empty State */}
         {!loading && projects.length === 0 && (
           <div className="card text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-              </svg>
+            <div className="w-16 h-16 bg-neon-surface-hover rounded-full flex items-center justify-center mx-auto mb-4">
+              <FolderKanban className="w-8 h-8 text-neon-text-muted" />
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No projects yet</h3>
-            <p className="text-gray-600 mb-4">
+            <h3 className="text-lg font-medium text-white mb-2">No projects yet</h3>
+            <p className="text-neon-text-secondary mb-4">
               {clients.length === 0
                 ? 'Create a client first, then start a new project.'
                 : 'Get started by creating your first project.'}
             </p>
             {clients.length > 0 && (
-              <button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
+              <button onClick={() => setShowCreateModal(true)} className="btn btn-accent">
+                <Plus className="w-4 h-4 mr-2" />
                 Create First Project
               </button>
             )}
@@ -179,33 +187,37 @@ export default function ProjectsPage() {
 
         {/* Projects Grid */}
         {!loading && projects.length > 0 && (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => (
               <Link
                 key={project.id}
                 to={`/projects/${project.id}`}
-                className="card hover:shadow-xl transition-shadow"
+                className="card hover:border-neon-border-focus transition-colors group"
               >
                 <div className="flex items-start justify-between mb-3">
-                  <h3 className="font-semibold text-gray-900 truncate">{project.name}</h3>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${STAGE_COLORS[project.stage]}`}>
+                  <h3 className="font-semibold text-white truncate group-hover:text-neon-cyan transition-colors">
+                    {project.name}
+                  </h3>
+                  <span className={`badge ${STAGE_BADGES[project.stage]}`}>
                     {project.stage.replace('_', ' ')}
                   </span>
                 </div>
                 {project.description && (
-                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">{project.description}</p>
+                  <p className="text-sm text-neon-text-muted mb-3 line-clamp-2">{project.description}</p>
                 )}
-                <div className="text-sm text-gray-500">
+                <div className="text-sm text-neon-text-secondary">
                   <span>{getClientName(project.clientId)}</span>
                 </div>
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 text-sm">
-                  <span className="text-gray-500">
-                    {project.actualHours > 0 ? `${project.actualHours}h logged` : 'No time logged'}
-                  </span>
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-neon-border text-sm">
+                  <div className="flex items-center gap-1 text-neon-text-muted">
+                    <Clock className="w-3 h-3" />
+                    <span>{project.actualHours > 0 ? `${project.actualHours}h` : 'No time'}</span>
+                  </div>
                   {project.targetDate && (
-                    <span className="text-gray-500">
-                      Due {new Date(project.targetDate).toLocaleDateString()}
-                    </span>
+                    <div className="flex items-center gap-1 text-neon-text-muted">
+                      <Calendar className="w-3 h-3" />
+                      <span>{new Date(project.targetDate).toLocaleDateString()}</span>
+                    </div>
                   )}
                 </div>
               </Link>
@@ -216,7 +228,7 @@ export default function ProjectsPage() {
         {/* Pagination */}
         {!loading && pagination.totalPages > 1 && (
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-neon-text-secondary">
               Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
               {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
               {pagination.total} projects
@@ -225,14 +237,14 @@ export default function ProjectsPage() {
               <button
                 onClick={() => setPagination((p) => ({ ...p, page: p.page - 1 }))}
                 disabled={pagination.page === 1}
-                className="btn btn-secondary disabled:opacity-50"
+                className="btn btn-secondary"
               >
                 Previous
               </button>
               <button
                 onClick={() => setPagination((p) => ({ ...p, page: p.page + 1 }))}
                 disabled={pagination.page === pagination.totalPages}
-                className="btn btn-secondary disabled:opacity-50"
+                className="btn btn-secondary"
               >
                 Next
               </button>
@@ -283,12 +295,15 @@ function CreateProjectModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Create New Project</h2>
+    <div className="modal-overlay">
+      <div className="modal animate-scale-in">
+        <div className="modal-header flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-white">Create New Project</h2>
+          <button onClick={onClose} className="text-neon-text-muted hover:text-white">
+            <X className="w-5 h-5" />
+          </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="modal-body space-y-4">
           <div>
             <label className="label">Client *</label>
             <select
@@ -339,15 +354,15 @@ function CreateProjectModal({
               ))}
             </select>
           </div>
-          <div className="flex gap-3 pt-4">
-            <button type="button" onClick={onClose} className="btn btn-secondary flex-1" disabled={submitting}>
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary flex-1" disabled={submitting || !name.trim()}>
-              {submitting ? 'Creating...' : 'Create Project'}
-            </button>
-          </div>
         </form>
+        <div className="modal-footer">
+          <button type="button" onClick={onClose} className="btn btn-secondary" disabled={submitting}>
+            Cancel
+          </button>
+          <button onClick={handleSubmit} className="btn btn-primary" disabled={submitting || !name.trim()}>
+            {submitting ? 'Creating...' : 'Create Project'}
+          </button>
+        </div>
       </div>
     </div>
   );

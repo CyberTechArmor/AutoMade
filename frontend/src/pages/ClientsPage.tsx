@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { api } from '../services/api';
 import type { Client } from '../types';
+import { Plus, Users, Building2, Mail, Calendar, ExternalLink, X } from 'lucide-react';
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -44,99 +45,117 @@ export default function ClientsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
-            <p className="text-gray-600">Manage your client organizations</p>
+            <h1 className="text-2xl font-bold text-white">Clients</h1>
+            <p className="text-neon-text-secondary">Manage your client organizations</p>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="btn btn-primary"
+            className="btn btn-primary flex items-center gap-2"
           >
+            <Plus className="w-4 h-4" />
             Add Client
           </button>
         </div>
 
         {/* Error */}
         {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-            {error}
+          <div className="p-4 bg-neon-error/10 border border-neon-error/20 rounded-lg text-neon-error flex items-center justify-between">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 
         {/* Loading */}
         {loading && (
           <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-neon-cyan border-t-transparent" />
           </div>
         )}
 
-        {/* Clients List */}
+        {/* Empty state */}
         {!loading && clients.length === 0 && (
           <div className="card text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
+            <div className="w-16 h-16 bg-neon-surface-hover rounded-full flex items-center justify-center mx-auto mb-4">
+              <Users className="w-8 h-8 text-neon-text-muted" />
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No clients yet</h3>
-            <p className="text-gray-600 mb-4">Get started by adding your first client organization.</p>
+            <h3 className="text-lg font-medium text-white mb-2">No clients yet</h3>
+            <p className="text-neon-text-secondary mb-4">Get started by adding your first client organization.</p>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="btn btn-primary"
+              className="btn btn-accent"
             >
+              <Plus className="w-4 h-4 mr-2" />
               Add First Client
             </button>
           </div>
         )}
 
+        {/* Clients List */}
         {!loading && clients.length > 0 && (
-          <div className="card overflow-hidden p-0">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="card p-0 overflow-hidden">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Client
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Industry
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Created
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th>Client</th>
+                  <th>Contact</th>
+                  <th>Industry</th>
+                  <th>Created</th>
+                  <th className="text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody>
                 {clients.map((client) => (
-                  <tr key={client.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{client.name}</div>
-                        {client.description && (
-                          <div className="text-sm text-gray-500 truncate max-w-xs">{client.description}</div>
-                        )}
+                  <tr key={client.id}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-neon-surface-hover rounded-lg flex items-center justify-center">
+                          <Building2 className="w-5 h-5 text-neon-text-secondary" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-white">{client.name}</div>
+                          {client.description && (
+                            <div className="text-sm text-neon-text-muted truncate max-w-xs">{client.description}</div>
+                          )}
+                        </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{client.contactName || '-'}</div>
-                      <div className="text-sm text-gray-500">{client.contactEmail || '-'}</div>
+                    <td>
+                      {client.contactName || client.contactEmail ? (
+                        <div>
+                          <div className="text-white">{client.contactName || '-'}</div>
+                          {client.contactEmail && (
+                            <div className="text-sm text-neon-text-muted flex items-center gap-1">
+                              <Mail className="w-3 h-3" />
+                              {client.contactEmail}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-neon-text-muted">-</span>
+                      )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-600">{client.industry || '-'}</span>
+                    <td>
+                      {client.industry ? (
+                        <span className="badge badge-neutral">{client.industry}</span>
+                      ) : (
+                        <span className="text-neon-text-muted">-</span>
+                      )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(client.createdAt).toLocaleDateString()}
+                    <td>
+                      <div className="flex items-center gap-1 text-neon-text-secondary text-sm">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(client.createdAt).toLocaleDateString()}
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <td className="text-right">
                       <Link
                         to={`/clients/${client.id}`}
-                        className="text-blue-600 hover:text-blue-700"
+                        className="btn btn-ghost btn-sm inline-flex items-center gap-1"
                       >
                         View
+                        <ExternalLink className="w-3 h-3" />
                       </Link>
                     </td>
                   </tr>
@@ -149,7 +168,7 @@ export default function ClientsPage() {
         {/* Pagination */}
         {!loading && pagination.totalPages > 1 && (
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-neon-text-secondary">
               Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
               {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
               {pagination.total} clients
@@ -158,14 +177,14 @@ export default function ClientsPage() {
               <button
                 onClick={() => setPagination((p) => ({ ...p, page: p.page - 1 }))}
                 disabled={pagination.page === 1}
-                className="btn btn-secondary disabled:opacity-50"
+                className="btn btn-secondary"
               >
                 Previous
               </button>
               <button
                 onClick={() => setPagination((p) => ({ ...p, page: p.page + 1 }))}
                 disabled={pagination.page === pagination.totalPages}
-                className="btn btn-secondary disabled:opacity-50"
+                className="btn btn-secondary"
               >
                 Next
               </button>
@@ -213,12 +232,15 @@ function CreateClientModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Add New Client</h2>
+    <div className="modal-overlay">
+      <div className="modal animate-scale-in">
+        <div className="modal-header flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-white">Add New Client</h2>
+          <button onClick={onClose} className="text-neon-text-muted hover:text-white">
+            <X className="w-5 h-5" />
+          </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="modal-body space-y-4">
           <div>
             <label className="label">Client Name *</label>
             <input
@@ -260,24 +282,24 @@ function CreateClientModal({
               placeholder="Technology"
             />
           </div>
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn btn-secondary flex-1"
-              disabled={submitting}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn btn-primary flex-1"
-              disabled={submitting || !name.trim()}
-            >
-              {submitting ? 'Creating...' : 'Create Client'}
-            </button>
-          </div>
         </form>
+        <div className="modal-footer">
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn btn-secondary"
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="btn btn-primary"
+            disabled={submitting || !name.trim()}
+          >
+            {submitting ? 'Creating...' : 'Create Client'}
+          </button>
+        </div>
       </div>
     </div>
   );

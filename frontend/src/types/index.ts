@@ -93,7 +93,7 @@ export interface CreateClientInput {
 export interface UpdateClientInput extends Partial<CreateClientInput> {}
 
 // Project types
-export type ProjectStage = 'discovery' | 'design' | 'development' | 'deployment' | 'operation' | 'completed' | 'on_hold';
+export type ProjectStage = 'discovery' | 'proposal' | 'contract' | 'development' | 'delivery' | 'maintenance' | 'closed';
 
 export interface ProjectOverview {
   problem?: string;

@@ -2,44 +2,323 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Fractionate Design System - Dark Theme */
+:root {
+  /* Background */
+  --bg: #0d0d0d;
+  --bg-surface: #161616;
+  --bg-surface-hover: #1a1a1a;
+
+  /* Text */
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --text-muted: #666666;
+
+  /* Borders */
+  --border: #2a2a2a;
+  --border-focus: #3a3a3a;
+
+  /* Semantic */
+  --success: #22c55e;
+  --warning: #eab308;
+  --error: #ef4444;
+  --info: #3b82f6;
+
+  /* Accent */
+  --accent: #ffffff;
+  --accent-cyan: #1f8cf9;
+  --accent-green: #22c55e;
+
+  /* Transitions */
+  --duration-fast: 0.1s;
+  --duration-normal: 0.2s;
+  --duration-slow: 0.3s;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html {
+  background-color: var(--bg);
+  color: var(--text-primary);
+}
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg);
+  color: var(--text-primary);
+}
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-focus);
 }
 
 @layer components {
+  /* Buttons */
   .btn {
-    @apply px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2;
+    @apply px-4 py-2 rounded-md font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-neon-bg disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .btn-primary {
-    @apply bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500;
+    @apply bg-white text-neon-bg hover:bg-gray-200 focus:ring-white;
   }
 
   .btn-secondary {
-    @apply bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-500;
+    @apply bg-neon-surface text-white border border-neon-border hover:bg-neon-surface-hover hover:border-neon-border-focus focus:ring-neon-border-focus;
+  }
+
+  .btn-accent {
+    @apply bg-neon-cyan text-white hover:bg-blue-400 focus:ring-neon-cyan;
   }
 
   .btn-danger {
-    @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+    @apply bg-neon-error text-white hover:bg-red-600 focus:ring-neon-error;
   }
 
+  .btn-ghost {
+    @apply bg-transparent text-neon-text-secondary hover:bg-neon-surface hover:text-white focus:ring-neon-border;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-sm;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-lg;
+  }
+
+  /* Inputs */
   .input {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+    @apply w-full px-3 py-2 bg-neon-surface border border-neon-border rounded-md text-white placeholder-neon-text-muted focus:outline-none focus:border-neon-border-focus focus:ring-1 focus:ring-neon-border-focus transition-colors duration-200;
   }
 
   .input-error {
-    @apply border-red-500 focus:ring-red-500;
+    @apply border-neon-error focus:border-neon-error focus:ring-neon-error;
   }
 
+  /* Labels */
   .label {
-    @apply block text-sm font-medium text-gray-700 mb-1;
+    @apply block text-sm font-medium text-neon-text-secondary mb-1;
   }
 
+  /* Cards */
   .card {
-    @apply bg-white rounded-xl shadow-lg p-6;
+    @apply bg-neon-surface border border-neon-border rounded-lg p-6;
+  }
+
+  .card-elevated {
+    @apply shadow-neon;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply bg-green-500/20 text-neon-success;
+  }
+
+  .badge-warning {
+    @apply bg-yellow-500/20 text-neon-warning;
+  }
+
+  .badge-error {
+    @apply bg-red-500/20 text-neon-error;
+  }
+
+  .badge-info {
+    @apply bg-blue-500/20 text-neon-info;
+  }
+
+  .badge-neutral {
+    @apply bg-white/10 text-white;
+  }
+
+  /* Status Dots */
+  .status-dot {
+    @apply w-2.5 h-2.5 rounded-full border-2 border-neon-bg;
+  }
+
+  .status-online {
+    @apply bg-neon-success;
+  }
+
+  .status-away {
+    @apply bg-neon-warning;
+  }
+
+  .status-busy {
+    @apply bg-neon-error;
+  }
+
+  .status-offline {
+    @apply bg-neon-text-muted;
+  }
+
+  /* Tables */
+  .table {
+    @apply w-full border-collapse;
+  }
+
+  .table th {
+    @apply text-left px-4 py-3 text-neon-text-secondary font-medium text-xs uppercase tracking-wider border-b border-neon-border;
+  }
+
+  .table td {
+    @apply px-4 py-3 border-b border-neon-border text-white;
+  }
+
+  .table tr:hover {
+    @apply bg-neon-surface-hover;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    @apply w-64 bg-neon-surface border-r border-neon-border h-screen flex flex-col;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2 mx-2 text-neon-text-secondary rounded-md cursor-pointer transition-all duration-150;
+  }
+
+  .sidebar-item:hover,
+  .sidebar-item-active {
+    @apply bg-neon-surface-hover text-white;
+  }
+
+  /* Dropdown */
+  .dropdown {
+    @apply min-w-[180px] bg-neon-surface border border-neon-border rounded-lg py-1 shadow-neon;
+  }
+
+  .dropdown-item {
+    @apply flex items-center gap-3 px-3 py-2 text-neon-text-secondary cursor-pointer transition-all duration-150;
+  }
+
+  .dropdown-item:hover {
+    @apply bg-neon-surface-hover text-white;
+  }
+
+  .dropdown-separator {
+    @apply h-px bg-neon-border my-1;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    @apply fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50;
+  }
+
+  .modal {
+    @apply bg-neon-surface border border-neon-border rounded-xl max-w-md w-full max-h-[90vh] overflow-auto shadow-neon;
+  }
+
+  .modal-header {
+    @apply p-6 border-b border-neon-border;
+  }
+
+  .modal-body {
+    @apply p-6;
+  }
+
+  .modal-footer {
+    @apply p-4 border-t border-neon-border flex justify-end gap-2;
+  }
+
+  /* Tabs */
+  .tabs {
+    @apply flex gap-1;
+  }
+
+  .tab {
+    @apply px-4 py-2 text-neon-text-secondary rounded-md font-medium transition-all duration-200;
+  }
+
+  .tab:hover {
+    @apply text-white bg-neon-surface-hover;
+  }
+
+  .tab-active {
+    @apply bg-neon-cyan text-white;
+  }
+
+  /* Avatar */
+  .avatar {
+    @apply inline-flex items-center justify-center rounded-full bg-neon-surface-hover text-white font-medium overflow-hidden;
+  }
+
+  .avatar-xs { @apply w-6 h-6 text-xs; }
+  .avatar-sm { @apply w-8 h-8 text-sm; }
+  .avatar-md { @apply w-10 h-10 text-base; }
+  .avatar-lg { @apply w-12 h-12 text-lg; }
+  .avatar-xl { @apply w-16 h-16 text-xl; }
+
+  /* Progress Bar */
+  .progress {
+    @apply w-full h-2 bg-neon-border rounded-full overflow-hidden;
+  }
+
+  .progress-bar {
+    @apply h-full bg-gradient-to-r from-neon-cyan to-neon-success rounded-full transition-all duration-300;
+  }
+
+  /* Toggle */
+  .toggle {
+    @apply relative w-11 h-6 bg-neon-border rounded-full cursor-pointer transition-colors duration-200;
+  }
+
+  .toggle-checked {
+    @apply bg-neon-cyan;
+  }
+
+  .toggle-thumb {
+    @apply absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform duration-200;
+  }
+
+  .toggle-checked .toggle-thumb {
+    @apply translate-x-5;
+  }
+
+  /* Animations */
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn var(--duration-normal) var(--ease);
+  }
+
+  .animate-scale-in {
+    animation: scaleIn var(--duration-normal) var(--ease);
+  }
+
+  .animate-slide-up {
+    animation: slideUp var(--duration-normal) var(--ease);
   }
 }

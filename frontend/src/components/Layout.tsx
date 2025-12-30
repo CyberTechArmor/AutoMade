@@ -1,110 +1,106 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import {
+  Home,
+  Users,
+  FolderKanban,
+  Video,
+  Settings,
+  LogOut,
+  Search,
+  Bell,
+  FileText,
+  ChevronDown,
+} from 'lucide-react';
+import { useState } from 'react';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-  { name: 'Clients', href: '/clients', icon: UsersIcon },
-  { name: 'Projects', href: '/projects', icon: FolderIcon },
-  { name: 'Sessions', href: '/sessions', icon: VideoIcon },
+  { name: 'Dashboard', href: '/dashboard', icon: Home },
+  { name: 'Clients', href: '/clients', icon: Users },
+  { name: 'Projects', href: '/projects', icon: FolderKanban },
+  { name: 'Sessions', href: '/sessions', icon: Video },
+  { name: 'Documents', href: '/documents', icon: FileText },
 ];
-
-function HomeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-    </svg>
-  );
-}
-
-function UsersIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-    </svg>
-  );
-}
-
-function FolderIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-    </svg>
-  );
-}
-
-function VideoIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-    </svg>
-  );
-}
-
-function SettingsIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  );
-}
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
+  const getInitials = (name?: string, email?: string) => {
+    if (name) {
+      return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    }
+    if (email) {
+      return email[0].toUpperCase();
+    }
+    return 'U';
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-neon-bg">
       {/* Sidebar */}
-      <div className="fixed inset-y-0 left-0 w-64 bg-gray-900">
+      <div className="fixed inset-y-0 left-0 w-64 bg-neon-surface border-r border-neon-border">
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center h-16 px-6 bg-gray-800">
-            <Link to="/dashboard" className="text-xl font-bold text-white">
-              AutoMade
+          <div className="flex items-center h-16 px-6 border-b border-neon-border">
+            <Link to="/dashboard" className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-neon-cyan rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">AM</span>
+              </div>
+              <span className="text-xl font-bold text-white">AutoMade</span>
             </Link>
           </div>
 
+          {/* Search */}
+          <div className="px-4 py-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neon-text-muted" />
+              <input
+                type="text"
+                placeholder="Search..."
+                className="input pl-10 py-2 text-sm"
+              />
+            </div>
+          </div>
+
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+          <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href ||
                 (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
+              const Icon = item.icon;
               return (
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-gray-800 text-white'
-                      : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                  }`}
+                  className={`sidebar-item ${isActive ? 'sidebar-item-active' : ''}`}
                 >
-                  <item.icon className="w-5 h-5 mr-3" />
-                  {item.name}
+                  <Icon className="w-5 h-5" />
+                  <span>{item.name}</span>
                 </Link>
               );
             })}
           </nav>
 
           {/* Bottom section */}
-          <div className="p-4 border-t border-gray-800">
+          <div className="p-3 border-t border-neon-border">
             <Link
               to="/settings/security"
-              className="flex items-center px-4 py-3 text-sm font-medium text-gray-300 rounded-lg hover:bg-gray-800 hover:text-white transition-colors"
+              className="sidebar-item"
             >
-              <SettingsIcon className="w-5 h-5 mr-3" />
-              Settings
+              <Settings className="w-5 h-5" />
+              <span>Settings</span>
             </Link>
           </div>
         </div>
@@ -113,19 +109,69 @@ export default function Layout({ children }: LayoutProps) {
       {/* Main content */}
       <div className="pl-64">
         {/* Top bar */}
-        <header className="bg-white shadow-sm">
+        <header className="bg-neon-surface border-b border-neon-border sticky top-0 z-40">
           <div className="flex items-center justify-between h-16 px-6">
+            {/* Left side - can add breadcrumbs here */}
             <div />
+
+            {/* Right side */}
             <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600">
-                {user?.displayName || user?.email}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="btn btn-secondary text-sm"
-              >
-                Sign out
+              {/* Notifications */}
+              <button className="relative p-2 text-neon-text-secondary hover:text-white hover:bg-neon-surface-hover rounded-lg transition-colors">
+                <Bell className="w-5 h-5" />
+                <span className="absolute top-1 right-1 w-2 h-2 bg-neon-error rounded-full" />
               </button>
+
+              {/* User menu */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="flex items-center gap-3 p-2 hover:bg-neon-surface-hover rounded-lg transition-colors"
+                >
+                  <div className="avatar avatar-sm">
+                    {getInitials(user?.displayName, user?.email)}
+                  </div>
+                  <span className="text-sm text-neon-text-secondary">
+                    {user?.displayName || user?.email}
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-neon-text-muted" />
+                </button>
+
+                {/* Dropdown */}
+                {showUserMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowUserMenu(false)}
+                    />
+                    <div className="dropdown absolute right-0 top-full mt-2 z-50 animate-scale-in">
+                      <div className="px-3 py-2 border-b border-neon-border">
+                        <p className="text-sm font-medium text-white">{user?.displayName}</p>
+                        <p className="text-xs text-neon-text-muted">{user?.email}</p>
+                      </div>
+                      <Link
+                        to="/settings/security"
+                        className="dropdown-item"
+                        onClick={() => setShowUserMenu(false)}
+                      >
+                        <Settings className="w-4 h-4" />
+                        <span>Settings</span>
+                      </Link>
+                      <div className="dropdown-separator" />
+                      <button
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          handleLogout();
+                        }}
+                        className="dropdown-item w-full text-neon-error hover:text-neon-error"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>Sign out</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </header>

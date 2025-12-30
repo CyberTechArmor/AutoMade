@@ -3,21 +3,22 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { api } from '../services/api';
 import type { Session, Project, SessionState, SessionType, CreateSessionInput } from '../types';
+import { Video, Mic, MessageSquare, Monitor, Bot, Plus, X, Filter, Clock, Calendar } from 'lucide-react';
 
-const STATE_COLORS: Record<SessionState, string> = {
-  scheduled: 'bg-blue-100 text-blue-800',
-  pending: 'bg-yellow-100 text-yellow-800',
-  in_progress: 'bg-green-100 text-green-800',
-  paused: 'bg-orange-100 text-orange-800',
-  completed: 'bg-gray-100 text-gray-800',
-  cancelled: 'bg-red-100 text-red-800',
+const STATE_BADGES: Record<SessionState, string> = {
+  scheduled: 'badge-info',
+  pending: 'badge-warning',
+  in_progress: 'badge-success',
+  paused: 'badge-warning',
+  completed: 'badge-neutral',
+  cancelled: 'badge-error',
 };
 
-const TYPE_ICONS: Record<SessionType, string> = {
-  video: 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z',
-  voice: 'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z',
-  text: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z',
-  hybrid: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+const TYPE_ICONS: Record<SessionType, React.ElementType> = {
+  video: Video,
+  voice: Mic,
+  text: MessageSquare,
+  hybrid: Monitor,
 };
 
 export default function SessionsPage() {
@@ -62,7 +63,6 @@ export default function SessionsPage() {
     try {
       const session = await api.createSession(data);
       setShowCreateModal(false);
-      // Navigate to the new session
       window.location.href = `/sessions/${session.id}`;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create session');
@@ -99,22 +99,27 @@ export default function SessionsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Discovery Sessions</h1>
-            <p className="text-gray-600">LLM-facilitated client sessions</p>
+            <h1 className="text-2xl font-bold text-white">Discovery Sessions</h1>
+            <p className="text-neon-text-secondary">LLM-facilitated client sessions</p>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="btn btn-primary"
+            className="btn btn-primary flex items-center gap-2"
             disabled={projects.length === 0}
           >
+            <Plus className="w-4 h-4" />
             New Session
           </button>
         </div>
 
         {/* Filters */}
         <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <Filter className="w-4 h-4 text-neon-text-muted" />
+            <span className="text-sm font-medium text-neon-text-secondary">Filters</span>
+          </div>
           <div className="flex gap-4">
-            <div>
+            <div className="flex-1">
               <label className="label">Project</label>
               <select
                 value={projectIdFilter}
@@ -129,7 +134,7 @@ export default function SessionsPage() {
                 ))}
               </select>
             </div>
-            <div>
+            <div className="flex-1">
               <label className="label">Status</label>
               <select
                 value={stateFilter}
@@ -150,34 +155,36 @@ export default function SessionsPage() {
 
         {/* Error */}
         {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-            {error}
+          <div className="p-4 bg-neon-error/10 border border-neon-error/20 rounded-lg text-neon-error flex items-center justify-between">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 
         {/* Loading */}
         {loading && (
           <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-neon-cyan border-t-transparent" />
           </div>
         )}
 
         {/* Empty State */}
         {!loading && sessions.length === 0 && (
           <div className="card text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={TYPE_ICONS.video} />
-              </svg>
+            <div className="w-16 h-16 bg-neon-surface-hover rounded-full flex items-center justify-center mx-auto mb-4">
+              <Video className="w-8 h-8 text-neon-text-muted" />
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No sessions yet</h3>
-            <p className="text-gray-600 mb-4">
+            <h3 className="text-lg font-medium text-white mb-2">No sessions yet</h3>
+            <p className="text-neon-text-secondary mb-4">
               {projects.length === 0
                 ? 'Create a project first, then start a discovery session.'
                 : 'Start your first discovery session with a client.'}
             </p>
             {projects.length > 0 && (
-              <button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
+              <button onClick={() => setShowCreateModal(true)} className="btn btn-accent">
+                <Plus className="w-4 h-4 mr-2" />
                 Start First Session
               </button>
             )}
@@ -187,59 +194,62 @@ export default function SessionsPage() {
         {/* Sessions List */}
         {!loading && sessions.length > 0 && (
           <div className="space-y-4">
-            {sessions.map((session) => (
-              <Link
-                key={session.id}
-                to={`/sessions/${session.id}`}
-                className="card block hover:shadow-xl transition-shadow"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={TYPE_ICONS[session.type]} />
-                      </svg>
+            {sessions.map((session) => {
+              const TypeIcon = TYPE_ICONS[session.type];
+              return (
+                <Link
+                  key={session.id}
+                  to={`/sessions/${session.id}`}
+                  className="card block hover:border-neon-border-focus transition-colors"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 bg-neon-cyan/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <TypeIcon className="w-5 h-5 text-neon-cyan" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-white">{session.title}</h3>
+                        <p className="text-sm text-neon-text-muted">{getProjectName(session.projectId)}</p>
+                        {session.description && (
+                          <p className="text-sm text-neon-text-secondary mt-1 line-clamp-2">{session.description}</p>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">{session.title}</h3>
-                      <p className="text-sm text-gray-500">{getProjectName(session.projectId)}</p>
-                      {session.description && (
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{session.description}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className={`px-3 py-1 text-sm font-medium rounded-full ${STATE_COLORS[session.state]}`}>
+                    <span className={`badge ${STATE_BADGES[session.state]}`}>
                       {session.state.replace('_', ' ')}
                     </span>
                   </div>
-                </div>
-                <div className="flex items-center gap-6 mt-4 pt-4 border-t border-gray-100 text-sm text-gray-500">
-                  <span className="capitalize">{session.type} Session</span>
-                  {session.duration && <span>{formatDuration(session.duration)}</span>}
-                  {session.scheduledAt && (
-                    <span>
-                      {new Date(session.scheduledAt).toLocaleString()}
-                    </span>
-                  )}
-                  {session.isAutonomous && (
-                    <span className="flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                      AI Facilitated
-                    </span>
-                  )}
-                </div>
-              </Link>
-            ))}
+                  <div className="flex items-center gap-6 mt-4 pt-4 border-t border-neon-border text-sm text-neon-text-muted">
+                    <span className="capitalize">{session.type} Session</span>
+                    {session.duration && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {formatDuration(session.duration)}
+                      </span>
+                    )}
+                    {session.scheduledAt && (
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(session.scheduledAt).toLocaleString()}
+                      </span>
+                    )}
+                    {session.isAutonomous && (
+                      <span className="flex items-center gap-1 text-neon-cyan">
+                        <Bot className="w-4 h-4" />
+                        AI Facilitated
+                      </span>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
 
         {/* Pagination */}
         {!loading && pagination.totalPages > 1 && (
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-neon-text-secondary">
               Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
               {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
               {pagination.total} sessions
@@ -248,14 +258,14 @@ export default function SessionsPage() {
               <button
                 onClick={() => setPagination((p) => ({ ...p, page: p.page - 1 }))}
                 disabled={pagination.page === 1}
-                className="btn btn-secondary disabled:opacity-50"
+                className="btn btn-secondary"
               >
                 Previous
               </button>
               <button
                 onClick={() => setPagination((p) => ({ ...p, page: p.page + 1 }))}
                 disabled={pagination.page === pagination.totalPages}
-                className="btn btn-secondary disabled:opacity-50"
+                className="btn btn-secondary"
               >
                 Next
               </button>
@@ -307,13 +317,23 @@ function CreateSessionModal({
     setSubmitting(false);
   };
 
+  const typeOptions: { value: SessionType; label: string; Icon: React.ElementType }[] = [
+    { value: 'video', label: 'Video', Icon: Video },
+    { value: 'voice', label: 'Voice', Icon: Mic },
+    { value: 'text', label: 'Text', Icon: MessageSquare },
+    { value: 'hybrid', label: 'Hybrid', Icon: Monitor },
+  ];
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Start New Session</h2>
+    <div className="modal-overlay">
+      <div className="modal animate-scale-in max-w-lg">
+        <div className="modal-header flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-white">Start New Session</h2>
+          <button onClick={onClose} className="text-neon-text-muted hover:text-white">
+            <X className="w-5 h-5" />
+          </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="modal-body space-y-4">
           <div>
             <label className="label">Project *</label>
             <select
@@ -353,21 +373,19 @@ function CreateSessionModal({
           <div>
             <label className="label">Session Type</label>
             <div className="grid grid-cols-4 gap-2">
-              {(['video', 'voice', 'text', 'hybrid'] as SessionType[]).map((t) => (
+              {typeOptions.map(({ value, label, Icon }) => (
                 <button
-                  key={t}
+                  key={value}
                   type="button"
-                  onClick={() => setType(t)}
+                  onClick={() => setType(value)}
                   className={`p-3 rounded-lg border text-center transition-colors ${
-                    type === t
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 hover:border-gray-300'
+                    type === value
+                      ? 'border-neon-cyan bg-neon-cyan/10 text-neon-cyan'
+                      : 'border-neon-border hover:border-neon-border-focus text-neon-text-secondary'
                   }`}
                 >
-                  <svg className="w-5 h-5 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={TYPE_ICONS[t]} />
-                  </svg>
-                  <span className="text-xs capitalize">{t}</span>
+                  <Icon className="w-5 h-5 mx-auto mb-1" />
+                  <span className="text-xs">{label}</span>
                 </button>
               ))}
             </div>
@@ -378,21 +396,22 @@ function CreateSessionModal({
               id="autonomous"
               checked={isAutonomous}
               onChange={(e) => setIsAutonomous(e.target.checked)}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              className="rounded border-neon-border bg-neon-surface text-neon-cyan focus:ring-neon-cyan"
             />
-            <label htmlFor="autonomous" className="text-sm text-gray-700">
+            <label htmlFor="autonomous" className="text-sm text-neon-text-secondary flex items-center gap-2">
+              <Bot className="w-4 h-4 text-neon-cyan" />
               AI-facilitated session (LLM will guide the conversation)
             </label>
           </div>
-          <div className="flex gap-3 pt-4">
-            <button type="button" onClick={onClose} className="btn btn-secondary flex-1" disabled={submitting}>
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary flex-1" disabled={submitting || !title.trim()}>
-              {submitting ? 'Creating...' : 'Start Session'}
-            </button>
-          </div>
         </form>
+        <div className="modal-footer">
+          <button type="button" onClick={onClose} className="btn btn-secondary" disabled={submitting}>
+            Cancel
+          </button>
+          <button onClick={handleSubmit} className="btn btn-primary" disabled={submitting || !title.trim()}>
+            {submitting ? 'Creating...' : 'Start Session'}
+          </button>
+        </div>
       </div>
     </div>
   );

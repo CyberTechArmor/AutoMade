@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Lock, Mail, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -35,69 +36,95 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-      <div className="card max-w-md w-full">
+    <div className="min-h-screen flex items-center justify-center bg-neon-bg px-4">
+      <div className="w-full max-w-md">
+        {/* Logo and Branding */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">AutoMade</h1>
-          <p className="text-gray-600 mt-2">Sign in to your account</p>
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-neon-cyan rounded-2xl mb-4">
+            <span className="text-2xl font-bold text-white">AM</span>
+          </div>
+          <h1 className="text-3xl font-bold text-white">AutoMade</h1>
+          <p className="text-neon-text-secondary mt-2">Sign in to your account</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-              {error}
+        {/* Login Card */}
+        <div className="card">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="flex items-center gap-3 p-4 bg-neon-error/10 border border-neon-error/20 rounded-lg text-neon-error">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="email" className="label">
+                Email address
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neon-text-muted" />
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="input pl-10"
+                  placeholder="you@example.com"
+                  required
+                  autoComplete="email"
+                />
+              </div>
             </div>
-          )}
 
-          <div>
-            <label htmlFor="email" className="label">
-              Email address
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="input"
-              placeholder="you@example.com"
-              required
-              autoComplete="email"
-            />
+            <div>
+              <label htmlFor="password" className="label">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neon-text-muted" />
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input pl-10"
+                  placeholder="Enter your password"
+                  required
+                  autoComplete="current-password"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="btn btn-primary w-full"
+            >
+              {isLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-neon-bg/30 border-t-neon-bg rounded-full animate-spin" />
+                  Signing in...
+                </span>
+              ) : (
+                'Sign in'
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-neon-text-secondary">
+              Don't have an account?{' '}
+              <Link to="/register" className="text-neon-cyan hover:text-blue-400 font-medium">
+                Sign up
+              </Link>
+            </p>
           </div>
-
-          <div>
-            <label htmlFor="password" className="label">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input"
-              placeholder="Enter your password"
-              required
-              autoComplete="current-password"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="btn btn-primary w-full"
-          >
-            {isLoading ? 'Signing in...' : 'Sign in'}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <p className="text-gray-600">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-blue-600 hover:text-blue-700">
-              Sign up
-            </Link>
-          </p>
         </div>
+
+        {/* Footer */}
+        <p className="text-center text-neon-text-muted text-sm mt-8">
+          Fractionate LLC
+        </p>
       </div>
     </div>
   );
