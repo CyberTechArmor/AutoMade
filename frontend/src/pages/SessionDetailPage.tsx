@@ -173,8 +173,8 @@ export default function SessionDetailPage() {
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-xl font-bold text-gray-900">{session.title}</h1>
-                <span className={`px-3 py-1 text-sm font-medium rounded-full ${STATE_COLORS[session.state]}`}>
-                  {session.state.replace('_', ' ')}
+                <span className={`px-3 py-1 text-sm font-medium rounded-full ${STATE_COLORS[session.state] || 'bg-gray-100 text-gray-800'}`}>
+                  {(session.state || 'unknown').replace('_', ' ')}
                 </span>
               </div>
               <p className="text-sm text-gray-500 capitalize">{session.type} session</p>

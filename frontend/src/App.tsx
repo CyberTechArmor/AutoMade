@@ -14,6 +14,8 @@ import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import SessionsPage from './pages/SessionsPage';
 import SessionDetailPage from './pages/SessionDetailPage';
+import DocumentsPage from './pages/DocumentsPage';
+import ProvidersPage from './pages/ProvidersPage';
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, mfaPending } = useAuth();
@@ -149,6 +151,26 @@ export default function App() {
         element={
           <ProtectedRoute>
             <SessionDetailPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Documents */}
+      <Route
+        path="/documents"
+        element={
+          <ProtectedRoute>
+            <DocumentsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Providers */}
+      <Route
+        path="/settings/providers"
+        element={
+          <ProtectedRoute>
+            <ProvidersPage />
           </ProtectedRoute>
         }
       />

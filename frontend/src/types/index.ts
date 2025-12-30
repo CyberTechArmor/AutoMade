@@ -531,6 +531,9 @@ export interface Provider {
   isPrimary: boolean;
   priority: number;
   config?: Record<string, unknown>;
+  status: 'active' | 'inactive' | 'error';
+  apiKeyHash: string;
+  lastUsedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
