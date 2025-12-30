@@ -11,8 +11,10 @@ import {
   Bell,
   FileText,
   ChevronDown,
+  Key,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import GlobalSearch from './search/GlobalSearch';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -31,6 +33,19 @@ export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+
+  // Keyboard shortcut for search (Cmd/Ctrl + K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setShowSearch(true);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -64,14 +79,16 @@ export default function Layout({ children }: LayoutProps) {
 
           {/* Search */}
           <div className="px-4 py-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neon-text-muted" />
-              <input
-                type="text"
-                placeholder="Search..."
-                className="input pl-10 py-2 text-sm"
-              />
-            </div>
+            <button
+              onClick={() => setShowSearch(true)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-neon-text-muted bg-neon-surface-hover rounded-lg hover:text-white transition-colors"
+            >
+              <Search className="w-4 h-4" />
+              <span>Search...</span>
+              <kbd className="ml-auto px-1.5 py-0.5 text-xs bg-neon-surface rounded border border-neon-border">
+                {navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}K
+              </kbd>
+            </button>
           </div>
 
           {/* Navigation */}
@@ -94,10 +111,17 @@ export default function Layout({ children }: LayoutProps) {
           </nav>
 
           {/* Bottom section */}
-          <div className="p-3 border-t border-neon-border">
+          <div className="p-3 border-t border-neon-border space-y-1">
+            <Link
+              to="/settings/providers"
+              className={`sidebar-item ${location.pathname === '/settings/providers' ? 'sidebar-item-active' : ''}`}
+            >
+              <Key className="w-5 h-5" />
+              <span>API Keys</span>
+            </Link>
             <Link
               to="/settings/security"
-              className="sidebar-item"
+              className={`sidebar-item ${location.pathname.startsWith('/settings/security') ? 'sidebar-item-active' : ''}`}
             >
               <Settings className="w-5 h-5" />
               <span>Settings</span>
@@ -181,6 +205,9 @@ export default function Layout({ children }: LayoutProps) {
           {children}
         </main>
       </div>
+
+      {/* Global Search Modal */}
+      <GlobalSearch isOpen={showSearch} onClose={() => setShowSearch(false)} />
     </div>
   );
 }

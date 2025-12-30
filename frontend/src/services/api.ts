@@ -28,6 +28,8 @@ import type {
   CalendarEvent,
   SearchResponse,
   Recording,
+  Provider,
+  CreateProviderInput,
 } from '../types';
 
 const API_BASE = '/api';
@@ -494,6 +496,44 @@ class ApiService {
 
   async getTranscript(sessionId: string, format: 'json' | 'text' | 'vtt' | 'srt' = 'json'): Promise<{ data: SessionTranscript[] } | string> {
     return this.request(`/sessions/${sessionId}/recordings/transcript?format=${format}`);
+  }
+
+  // Provider endpoints
+  async listProviders(): Promise<{ data: Provider[] }> {
+    return this.request('/providers');
+  }
+
+  async getProvider(id: string): Promise<Provider> {
+    return this.request<Provider>(`/providers/${id}`);
+  }
+
+  async createProvider(data: CreateProviderInput): Promise<Provider> {
+    return this.request<Provider>('/providers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateProvider(id: string, data: Partial<CreateProviderInput>): Promise<Provider> {
+    return this.request<Provider>(`/providers/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteProvider(id: string): Promise<void> {
+    await this.request(`/providers/${id}`, { method: 'DELETE' });
+  }
+
+  async rotateProviderKey(id: string, newApiKey: string): Promise<Provider> {
+    return this.request<Provider>(`/providers/${id}/rotate-key`, {
+      method: 'POST',
+      body: JSON.stringify({ apiKey: newApiKey }),
+    });
+  }
+
+  async testProvider(id: string): Promise<{ success: boolean; message: string }> {
+    return this.request(`/providers/${id}/test`, { method: 'POST' });
   }
 }
 
