@@ -41,6 +41,18 @@ tags:
     description: Discovery session management
   - name: Providers
     description: Service provider configuration
+  - name: Documents
+    description: Document management and versioning
+  - name: Milestones
+    description: Project milestone management
+  - name: Metrics
+    description: Progress and cost tracking
+  - name: Recordings
+    description: Session recording playback
+  - name: Calendar
+    description: Session scheduling and calendar
+  - name: Search
+    description: Global search functionality
 
 components:
   securitySchemes:
@@ -521,6 +533,340 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    # ============================================
+    # Phase 1-3 Feature Schemas
+    # ============================================
+
+    Document:
+      type: object
+      required:
+        - id
+        - projectId
+        - name
+        - mimeType
+        - currentVersion
+        - state
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        mimeType:
+          type: string
+        currentVersion:
+          type: integer
+        state:
+          type: string
+          enum: [draft, review, approved, published, archived]
+        tags:
+          type: array
+          items:
+            type: string
+        createdById:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DocumentVersion:
+      type: object
+      required:
+        - id
+        - documentId
+        - version
+        - filename
+        - fileSize
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        documentId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        filename:
+          type: string
+        fileSize:
+          type: integer
+        checksum:
+          type: string
+        comment:
+          type: string
+        uploadedById:
+          type: string
+          format: uuid
+        uploadedByName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Milestone:
+      type: object
+      required:
+        - id
+        - projectId
+        - title
+        - orderIndex
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        dueDate:
+          type: string
+          format: date
+        completedAt:
+          type: string
+          format: date-time
+        orderIndex:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    TimeEntry:
+      type: object
+      required:
+        - id
+        - projectId
+        - userId
+        - date
+        - hours
+        - billable
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        userName:
+          type: string
+        milestoneId:
+          type: string
+          format: uuid
+        milestoneName:
+          type: string
+        date:
+          type: string
+          format: date
+        hours:
+          type: number
+        description:
+          type: string
+        billable:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ProjectMetrics:
+      type: object
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        hoursEstimated:
+          type: number
+        hoursLogged:
+          type: number
+        hoursRemaining:
+          type: number
+        budgetEstimated:
+          type: number
+        budgetSpent:
+          type: number
+        budgetRemaining:
+          type: number
+        completionPercentage:
+          type: number
+        milestonesTotal:
+          type: integer
+        milestonesCompleted:
+          type: integer
+        hoursByWeek:
+          type: array
+          items:
+            type: object
+            properties:
+              week:
+                type: string
+              hours:
+                type: number
+        costsBySource:
+          type: array
+          items:
+            type: object
+            properties:
+              source:
+                type: string
+              amount:
+                type: number
+
+    Recording:
+      type: object
+      required:
+        - id
+        - sessionId
+        - filename
+        - fileSize
+        - mimeType
+        - trackType
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        sessionId:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        fileSize:
+          type: integer
+        duration:
+          type: integer
+          description: Duration in milliseconds
+        mimeType:
+          type: string
+        trackType:
+          type: string
+          enum: [combined, video, audio]
+        participantId:
+          type: string
+        participantName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CalendarEvent:
+      type: object
+      required:
+        - id
+        - title
+        - start
+        - type
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        allDay:
+          type: boolean
+        type:
+          type: string
+          enum: [session, milestone, deadline]
+        sessionId:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        projectName:
+          type: string
+        clientId:
+          type: string
+          format: uuid
+        clientName:
+          type: string
+        color:
+          type: string
+
+    SearchResult:
+      type: object
+      required:
+        - id
+        - type
+        - title
+        - score
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [client, project, session, document]
+        title:
+          type: string
+        description:
+          type: string
+        highlight:
+          type: string
+          description: Matched text with highlights
+        score:
+          type: number
+        url:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ProviderUsage:
+      type: object
+      properties:
+        providerId:
+          type: string
+          format: uuid
+        providerName:
+          type: string
+        service:
+          type: string
+        period:
+          type: string
+        totalRequests:
+          type: integer
+        totalInputTokens:
+          type: integer
+        totalOutputTokens:
+          type: integer
+        totalCostCents:
+          type: integer
+        averageLatencyMs:
+          type: number
+        errorRate:
+          type: number
 
   parameters:
     PageParam:
@@ -1824,6 +2170,970 @@ paths:
                     type: boolean
                   message:
                     type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # Document Management (Phase 1)
+  # ============================================
+
+  /projects/{projectId}/documents:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Documents]
+      summary: List project documents
+      operationId: listDocuments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [draft, review, approved, published, archived]
+        - name: tag
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Document'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Documents]
+      summary: Upload document
+      operationId: uploadDocument
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                name:
+                  type: string
+                description:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Document uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /documents/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Documents]
+      summary: Get document
+      operationId: getDocument
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Document details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Documents]
+      summary: Update document metadata
+      operationId: updateDocument
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                state:
+                  type: string
+                  enum: [draft, review, approved, published, archived]
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Document updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Documents]
+      summary: Delete document
+      operationId: deleteDocument
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Document deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /documents/{id}/versions:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Documents]
+      summary: List document versions
+      operationId: listDocumentVersions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of versions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  versions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DocumentVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Documents]
+      summary: Upload new version
+      operationId: uploadDocumentVersion
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                comment:
+                  type: string
+      responses:
+        '201':
+          description: Version uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /documents/{id}/versions/{version}/download:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: version
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Documents]
+      summary: Download document version
+      operationId: downloadDocumentVersion
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: File download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # Milestone Management (Phase 1)
+  # ============================================
+
+  /projects/{projectId}/milestones:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Milestones]
+      summary: List project milestones
+      operationId: listMilestones
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of milestones
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  milestones:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Milestone'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Milestones]
+      summary: Create milestone
+      operationId: createMilestone
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                dueDate:
+                  type: string
+                  format: date
+                orderIndex:
+                  type: integer
+      responses:
+        '201':
+          description: Milestone created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Milestone'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /milestones/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Milestones]
+      summary: Get milestone
+      operationId: getMilestone
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Milestone details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Milestone'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Milestones]
+      summary: Update milestone
+      operationId: updateMilestone
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                dueDate:
+                  type: string
+                  format: date
+                orderIndex:
+                  type: integer
+      responses:
+        '200':
+          description: Milestone updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Milestone'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Milestones]
+      summary: Delete milestone
+      operationId: deleteMilestone
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Milestone deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /milestones/{id}/complete:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Milestones]
+      summary: Mark milestone complete
+      operationId: completeMilestone
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Milestone marked complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Milestone'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /milestones/reorder:
+    post:
+      tags: [Milestones]
+      summary: Reorder milestones
+      operationId: reorderMilestones
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - projectId
+                - milestoneIds
+              properties:
+                projectId:
+                  type: string
+                  format: uuid
+                milestoneIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: Milestones reordered
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================
+  # Progress/Cost Tracking (Phase 1)
+  # ============================================
+
+  /projects/{projectId}/metrics:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Metrics]
+      summary: Get project metrics
+      operationId: getProjectMetrics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Project metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMetrics'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{projectId}/time-entries:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Metrics]
+      summary: List time entries
+      operationId: listTimeEntries
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: userId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of time entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TimeEntry'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Metrics]
+      summary: Log time entry
+      operationId: createTimeEntry
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - date
+                - hours
+              properties:
+                date:
+                  type: string
+                  format: date
+                hours:
+                  type: number
+                  minimum: 0.25
+                  maximum: 24
+                description:
+                  type: string
+                billable:
+                  type: boolean
+                  default: true
+                milestoneId:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Time entry created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeEntry'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /time-entries/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      tags: [Metrics]
+      summary: Update time entry
+      operationId: updateTimeEntry
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                date:
+                  type: string
+                  format: date
+                hours:
+                  type: number
+                description:
+                  type: string
+                billable:
+                  type: boolean
+                milestoneId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Time entry updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeEntry'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Metrics]
+      summary: Delete time entry
+      operationId: deleteTimeEntry
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Time entry deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # LiveKit Integration (Phase 2)
+  # ============================================
+
+  /sessions/{id}/livekit-token:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Sessions]
+      summary: Generate LiveKit token
+      operationId: generateLiveKitToken
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - participantName
+              properties:
+                participantName:
+                  type: string
+      responses:
+        '200':
+          description: LiveKit token generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  url:
+                    type: string
+                  roomName:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # Recording Playback (Phase 2)
+  # ============================================
+
+  /sessions/{sessionId}/recordings:
+    parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Recordings]
+      summary: List session recordings
+      operationId: listRecordings
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of recordings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recordings:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Recording'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /recordings/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Recordings]
+      summary: Get recording metadata
+      operationId: getRecording
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Recording details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recording'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /recordings/{id}/stream:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Recordings]
+      summary: Stream recording
+      operationId: streamRecording
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Recording stream
+          headers:
+            Accept-Ranges:
+              schema:
+                type: string
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+            video/webm:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # Calendar Scheduling (Phase 3)
+  # ============================================
+
+  /calendar/events:
+    get:
+      tags: [Calendar]
+      summary: Get calendar events
+      operationId: getCalendarEvents
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: start
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: end
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: clientId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of calendar events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CalendarEvent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================
+  # Global Search (Phase 3)
+  # ============================================
+
+  /search:
+    get:
+      tags: [Search]
+      summary: Global search
+      operationId: globalSearch
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+        - name: types
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [clients, projects, sessions, documents]
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchResult'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================
+  # Provider Usage (AI Configuration)
+  # ============================================
+
+  /providers/usage:
+    get:
+      tags: [Providers]
+      summary: Get provider usage statistics
+      operationId: getProviderUsage
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: month
+        - name: providerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Usage statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  usage:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProviderUsage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /providers/{id}/rotate-key:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Providers]
+      summary: Rotate provider API key
+      operationId: rotateProviderKey
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - newApiKey
+              properties:
+                newApiKey:
+                  type: string
+      responses:
+        '200':
+          description: API key rotated
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
