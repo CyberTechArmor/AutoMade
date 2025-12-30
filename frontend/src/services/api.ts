@@ -4,6 +4,18 @@ import type {
   MfaSetupResponse,
   MfaCompleteResponse,
   User,
+  Client,
+  CreateClientInput,
+  UpdateClientInput,
+  Project,
+  CreateProjectInput,
+  UpdateProjectInput,
+  Session,
+  CreateSessionInput,
+  UpdateSessionInput,
+  SessionTranscript,
+  SessionMessageResponse,
+  PaginatedResponse,
 } from '../types';
 
 const API_BASE = '/api';
@@ -75,6 +87,11 @@ class ApiService {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.message || 'Request failed');
+    }
+
+    // Handle 204 No Content
+    if (response.status === 204) {
+      return undefined as T;
     }
 
     return response.json();
@@ -183,6 +200,141 @@ class ApiService {
     await this.request('/auth/mfa/disable', {
       method: 'POST',
       body: JSON.stringify({ password }),
+    });
+  }
+
+  // Client endpoints
+  async listClients(params?: {
+    page?: number;
+    limit?: number;
+  }): Promise<PaginatedResponse<Client>> {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    const query = searchParams.toString();
+    return this.request<PaginatedResponse<Client>>(`/clients${query ? `?${query}` : ''}`);
+  }
+
+  async getClient(id: string): Promise<Client> {
+    return this.request<Client>(`/clients/${id}`);
+  }
+
+  async createClient(data: CreateClientInput): Promise<Client> {
+    return this.request<Client>('/clients', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateClient(id: string, data: UpdateClientInput): Promise<Client> {
+    return this.request<Client>(`/clients/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteClient(id: string): Promise<void> {
+    await this.request(`/clients/${id}`, { method: 'DELETE' });
+  }
+
+  // Project endpoints
+  async listProjects(params?: {
+    clientId?: string;
+    stage?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<PaginatedResponse<Project>> {
+    const searchParams = new URLSearchParams();
+    if (params?.clientId) searchParams.set('clientId', params.clientId);
+    if (params?.stage) searchParams.set('stage', params.stage);
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    const query = searchParams.toString();
+    return this.request<PaginatedResponse<Project>>(`/projects${query ? `?${query}` : ''}`);
+  }
+
+  async getProject(id: string): Promise<Project> {
+    return this.request<Project>(`/projects/${id}`);
+  }
+
+  async createProject(data: CreateProjectInput): Promise<Project> {
+    return this.request<Project>('/projects', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateProject(id: string, data: UpdateProjectInput): Promise<Project> {
+    return this.request<Project>(`/projects/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteProject(id: string): Promise<void> {
+    await this.request(`/projects/${id}`, { method: 'DELETE' });
+  }
+
+  // Session endpoints
+  async listSessions(params?: {
+    projectId?: string;
+    state?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<PaginatedResponse<Session>> {
+    const searchParams = new URLSearchParams();
+    if (params?.projectId) searchParams.set('projectId', params.projectId);
+    if (params?.state) searchParams.set('state', params.state);
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    const query = searchParams.toString();
+    return this.request<PaginatedResponse<Session>>(`/sessions${query ? `?${query}` : ''}`);
+  }
+
+  async getSession(id: string): Promise<Session> {
+    return this.request<Session>(`/sessions/${id}`);
+  }
+
+  async createSession(data: CreateSessionInput): Promise<Session> {
+    return this.request<Session>('/sessions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateSession(id: string, data: UpdateSessionInput): Promise<Session> {
+    return this.request<Session>(`/sessions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async startSession(id: string): Promise<Session> {
+    return this.request<Session>(`/sessions/${id}/start`, {
+      method: 'POST',
+    });
+  }
+
+  async endSession(id: string): Promise<Session> {
+    return this.request<Session>(`/sessions/${id}/end`, {
+      method: 'POST',
+    });
+  }
+
+  async getSessionTranscripts(id: string): Promise<SessionTranscript[]> {
+    return this.request<SessionTranscript[]>(`/sessions/${id}/transcripts`);
+  }
+
+  async sendSessionMessage(id: string, content: string): Promise<SessionMessageResponse> {
+    return this.request<SessionMessageResponse>(`/sessions/${id}/message`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  async summarizeSession(id: string): Promise<Session['output']> {
+    return this.request<Session['output']>(`/sessions/${id}/summarize`, {
+      method: 'POST',
     });
   }
 }
