@@ -183,3 +183,37 @@ export function validateCredentials(
     return { valid: false, errors: ['Invalid credentials format'] };
   }
 }
+
+// Get provider usage schema
+export const getProviderUsageSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid provider ID'),
+  }),
+  query: z.object({
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
+  }),
+});
+
+// Get all providers usage schema
+export const getAllProvidersUsageSchema = z.object({
+  query: z.object({
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
+  }),
+});
+
+// Rotate provider key schema
+export const rotateProviderKeySchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid provider ID'),
+  }),
+  body: z.object({
+    credentials: z.record(z.string()),
+  }),
+});
+
+export type RotateProviderKeyInput = {
+  params: z.infer<typeof rotateProviderKeySchema>['params'];
+  body: z.infer<typeof rotateProviderKeySchema>['body'];
+};

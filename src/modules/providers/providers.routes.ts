@@ -10,6 +10,9 @@ import {
   listProvidersSchema,
   testProviderSchema,
   deleteProviderSchema,
+  getProviderUsageSchema,
+  getAllProvidersUsageSchema,
+  rotateProviderKeySchema,
 } from './providers.schemas.js';
 
 const router = Router();
@@ -145,6 +148,72 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await providerService.testProvider(req.params.id!);
+
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/providers/usage
+ * Get aggregated usage for all providers
+ */
+router.get(
+  '/usage',
+  validate(getAllProvidersUsageSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await providerService.getAllProvidersUsage({
+        startDate: req.query.startDate ? new Date(req.query.startDate as string) : undefined,
+        endDate: req.query.endDate ? new Date(req.query.endDate as string) : undefined,
+      });
+
+      res.json({ data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/providers/:id/usage
+ * Get usage statistics for a specific provider
+ */
+router.get(
+  '/:id/usage',
+  validate(getProviderUsageSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await providerService.getProviderUsage(req.params.id!, {
+        startDate: req.query.startDate ? new Date(req.query.startDate as string) : undefined,
+        endDate: req.query.endDate ? new Date(req.query.endDate as string) : undefined,
+      });
+
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/providers/:id/rotate
+ * Rotate a provider's API key
+ */
+router.post(
+  '/:id/rotate',
+  validate(rotateProviderKeySchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await providerService.rotateProviderKey(
+        req.params.id!,
+        req.body.credentials,
+        req.user!.id,
+        req.ip ?? undefined,
+        req.requestId
+      );
 
       res.json(result);
     } catch (error) {

@@ -111,3 +111,63 @@ export const costEntries = pgTable('cost_entries', {
   sourceIdx: index('cost_entries_source_idx').on(table.source),
   dateIdx: index('cost_entries_date_idx').on(table.incurredAt),
 }));
+
+/** Simple time entries for project time tracking. */
+export const timeEntries = pgTable('time_entries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+
+  /** Project this entry belongs to. */
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+
+  /** User who logged the time. */
+  userId: uuid('user_id').notNull().references(() => users.id),
+
+  /** Associated milestone if any. */
+  milestoneId: uuid('milestone_id'),
+
+  /** Date of work (date only, no time). */
+  entryDate: timestamp('entry_date', { withTimezone: true }).notNull(),
+
+  /** Hours worked (decimal, e.g., 1.5 for 1h30m). */
+  hours: text('hours').notNull(), // Using text to avoid decimal precision issues
+
+  /** Description of work done. */
+  description: text('description'),
+
+  /** Whether this time is billable. */
+  billable: boolean('billable').notNull().default(true),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  projectIdx: index('time_entries_project_idx').on(table.projectId),
+  userIdx: index('time_entries_user_idx').on(table.userId),
+  dateIdx: index('time_entries_date_idx').on(table.entryDate),
+  milestoneIdx: index('time_entries_milestone_idx').on(table.milestoneId),
+}));
+
+/** Full-text search index for global search. */
+export const searchIndex = pgTable('search_index', {
+  id: uuid('id').primaryKey().defaultRandom(),
+
+  /** Type of resource (client, project, session, document). */
+  resourceType: text('resource_type').notNull(),
+
+  /** ID of the resource. */
+  resourceId: uuid('resource_id').notNull(),
+
+  /** Searchable title/name. */
+  title: text('title').notNull(),
+
+  /** Searchable content/description. */
+  content: text('content'),
+
+  /** Additional metadata for filtering. */
+  metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+
+  /** When the index was last updated. */
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  resourceIdx: index('search_index_resource_idx').on(table.resourceType, table.resourceId),
+  titleIdx: index('search_index_title_idx').on(table.title),
+}));

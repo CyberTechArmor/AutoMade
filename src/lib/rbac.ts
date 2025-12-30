@@ -69,6 +69,29 @@ export const PERMISSIONS = {
   // System settings
   'settings:read': [ROLES.ADMIN, ROLES.MANAGER],
   'settings:update': [ROLES.ADMIN],
+
+  // Milestones
+  'milestones:create': [ROLES.ADMIN, ROLES.MANAGER],
+  'milestones:read': [ROLES.ADMIN, ROLES.MANAGER],
+  'milestones:update': [ROLES.ADMIN, ROLES.MANAGER],
+  'milestones:delete': [ROLES.ADMIN],
+
+  // Metrics and time tracking
+  'metrics:create': [ROLES.ADMIN, ROLES.MANAGER],
+  'metrics:read': [ROLES.ADMIN, ROLES.MANAGER],
+  'metrics:update': [ROLES.ADMIN, ROLES.MANAGER],
+  'metrics:delete': [ROLES.ADMIN],
+
+  // Recordings
+  'recordings:create': [ROLES.ADMIN, ROLES.MANAGER],
+  'recordings:read': [ROLES.ADMIN, ROLES.MANAGER],
+  'recordings:delete': [ROLES.ADMIN],
+
+  // Calendar
+  'calendar:read': [ROLES.ADMIN, ROLES.MANAGER, ROLES.CLIENT],
+
+  // Search
+  'search:read': [ROLES.ADMIN, ROLES.MANAGER, ROLES.CLIENT],
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;

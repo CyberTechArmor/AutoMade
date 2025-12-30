@@ -167,3 +167,43 @@ export const sessionTranscripts = pgTable('session_transcripts', {
   sessionIdx: index('session_transcripts_session_idx').on(table.sessionId),
   timestampIdx: index('session_transcripts_timestamp_idx').on(table.sessionId, table.timestampMs),
 }));
+
+/** Session recordings for playback. */
+export const sessionRecordings = pgTable('session_recordings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+
+  /** Session this recording belongs to. */
+  sessionId: uuid('session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
+
+  /** Original filename. */
+  filename: text('filename').notNull(),
+
+  /** File size in bytes. */
+  fileSize: integer('file_size').notNull(),
+
+  /** Duration in milliseconds. */
+  duration: integer('duration'),
+
+  /** MIME type (video/mp4, video/webm, audio/webm). */
+  mimeType: text('mime_type').notNull(),
+
+  /** Track type. */
+  trackType: text('track_type').notNull(), // 'combined', 'video', 'audio'
+
+  /** Participant ID if individual track. */
+  participantId: text('participant_id'),
+
+  /** Participant name if individual track. */
+  participantName: text('participant_name'),
+
+  /** Storage path (relative to storage root). */
+  storagePath: text('storage_path').notNull(),
+
+  /** LiveKit egress ID if applicable. */
+  egressId: text('egress_id'),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  sessionIdx: index('session_recordings_session_idx').on(table.sessionId),
+  trackTypeIdx: index('session_recordings_track_type_idx').on(table.trackType),
+}));

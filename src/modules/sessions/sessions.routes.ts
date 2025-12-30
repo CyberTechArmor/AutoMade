@@ -7,10 +7,15 @@ import {
   getSessionSchema,
   addTranscriptSchema,
   sessionMessageSchema,
+  generateTokenSchema,
 } from './sessions.schemas.js';
 import * as sessionService from './sessions.service.js';
+import recordingsRoutes from '../recordings/recordings.routes.js';
 
 const router = Router();
+
+// Nest recordings routes under sessions
+router.use('/:sessionId/recordings', recordingsRoutes);
 
 /**
  * GET /sessions
@@ -254,6 +259,134 @@ router.post(
       );
 
       res.json(summary);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ============================================================================
+// LiveKit Real-time Session Endpoints
+// ============================================================================
+
+/**
+ * POST /sessions/:id/room
+ * Create a LiveKit room for the session
+ */
+router.post(
+  '/:id/room',
+  authenticate,
+  authorize('sessions:update'),
+  validate(getSessionSchema),
+  async (req, res, next) => {
+    try {
+      const room = await sessionService.createSessionRoom(req.params.id!);
+      res.status(201).json(room);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /sessions/:id/room
+ * Get LiveKit room status
+ */
+router.get(
+  '/:id/room',
+  authenticate,
+  authorize('sessions:read'),
+  validate(getSessionSchema),
+  async (req, res, next) => {
+    try {
+      const status = await sessionService.getSessionRoomStatus(req.params.id!);
+      res.json(status);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * DELETE /sessions/:id/room
+ * Close the LiveKit room
+ */
+router.delete(
+  '/:id/room',
+  authenticate,
+  authorize('sessions:update'),
+  validate(getSessionSchema),
+  async (req, res, next) => {
+    try {
+      await sessionService.closeSessionRoom(req.params.id!);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /sessions/:id/token
+ * Generate a LiveKit access token for the current user
+ */
+router.post(
+  '/:id/token',
+  authenticate,
+  authorize('sessions:read'),
+  validate(generateTokenSchema),
+  async (req, res, next) => {
+    try {
+      const token = await sessionService.generateParticipantToken(
+        req.params.id!,
+        req.user!.id,
+        {
+          canPublish: req.body.canPublish,
+          canSubscribe: req.body.canSubscribe,
+        }
+      );
+
+      res.json({ token });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * DELETE /sessions/:id/participants/:participantId
+ * Remove a participant from the session room
+ */
+router.delete(
+  '/:id/participants/:participantId',
+  authenticate,
+  authorize('sessions:update'),
+  async (req, res, next) => {
+    try {
+      await sessionService.removeSessionParticipant(
+        req.params.id!,
+        req.params.participantId!
+      );
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /sessions/:id/broadcast
+ * Broadcast data to all participants
+ */
+router.post(
+  '/:id/broadcast',
+  authenticate,
+  authorize('sessions:update'),
+  validate(getSessionSchema),
+  async (req, res, next) => {
+    try {
+      await sessionService.broadcastToSessionRoom(req.params.id!, req.body);
+      res.status(204).send();
     } catch (error) {
       next(error);
     }

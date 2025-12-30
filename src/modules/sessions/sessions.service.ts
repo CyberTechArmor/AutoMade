@@ -419,7 +419,6 @@ export async function createSessionRoom(sessionId: string): Promise<{
 export async function generateParticipantToken(
   sessionId: string,
   userId: string,
-  userName: string,
   options?: {
     canPublish?: boolean;
     canSubscribe?: boolean;
@@ -430,6 +429,15 @@ export async function generateParticipantToken(
   if (!session) {
     throw new NotFoundError('Session');
   }
+
+  // Look up the user's name
+  const [user] = await db
+    .select({ displayName: schema.users.displayName, email: schema.users.email })
+    .from(schema.users)
+    .where(eq(schema.users.id, userId))
+    .limit(1);
+
+  const userName = user?.displayName || user?.email || userId;
 
   // Ensure room exists
   if (!session.livekitRoom) {

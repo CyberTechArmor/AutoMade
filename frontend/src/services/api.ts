@@ -10,12 +10,24 @@ import type {
   Project,
   CreateProjectInput,
   UpdateProjectInput,
+  ProjectMilestone,
+  CreateMilestoneInput,
   Session,
   CreateSessionInput,
   UpdateSessionInput,
   SessionTranscript,
   SessionMessageResponse,
   PaginatedResponse,
+  Document,
+  CreateDocumentInput,
+  DocumentVersion,
+  DocumentAttachment,
+  TimeEntry,
+  ProjectMetrics,
+  CreateTimeEntryInput,
+  CalendarEvent,
+  SearchResponse,
+  Recording,
 } from '../types';
 
 const API_BASE = '/api';
@@ -336,6 +348,152 @@ class ApiService {
     return this.request<Session['output']>(`/sessions/${id}/summarize`, {
       method: 'POST',
     });
+  }
+
+  // LiveKit endpoints
+  async getSessionToken(sessionId: string, options?: { canPublish?: boolean; canSubscribe?: boolean }): Promise<{ token: string }> {
+    return this.request<{ token: string }>(`/sessions/${sessionId}/token`, {
+      method: 'POST',
+      body: JSON.stringify(options || {}),
+    });
+  }
+
+  async createSessionRoom(sessionId: string): Promise<{ roomName: string; roomSid: string }> {
+    return this.request<{ roomName: string; roomSid: string }>(`/sessions/${sessionId}/room`, {
+      method: 'POST',
+    });
+  }
+
+  async getSessionRoomStatus(sessionId: string): Promise<{
+    exists: boolean;
+    numParticipants: number;
+    participants: Array<{ identity: string; name: string; joinedAt: number; isPublisher: boolean }>;
+  }> {
+    return this.request(`/sessions/${sessionId}/room`);
+  }
+
+  // Document endpoints
+  async listDocuments(projectId: string, params?: { type?: string; state?: string; page?: number; limit?: number }): Promise<PaginatedResponse<Document>> {
+    const searchParams = new URLSearchParams();
+    if (params?.type) searchParams.set('type', params.type);
+    if (params?.state) searchParams.set('state', params.state);
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    const query = searchParams.toString();
+    return this.request<PaginatedResponse<Document>>(`/projects/${projectId}/documents${query ? `?${query}` : ''}`);
+  }
+
+  async getDocument(projectId: string, documentId: string): Promise<{ document: Document; versions: DocumentVersion[]; attachments: DocumentAttachment[] }> {
+    return this.request(`/projects/${projectId}/documents/${documentId}`);
+  }
+
+  async createDocument(projectId: string, data: CreateDocumentInput): Promise<Document> {
+    return this.request<Document>(`/projects/${projectId}/documents`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateDocument(projectId: string, documentId: string, data: Partial<Document>): Promise<Document> {
+    return this.request<Document>(`/projects/${projectId}/documents/${documentId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createDocumentVersion(projectId: string, documentId: string, data: { content: string; changeReason?: string }): Promise<DocumentVersion> {
+    return this.request<DocumentVersion>(`/projects/${projectId}/documents/${documentId}/versions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteDocument(projectId: string, documentId: string): Promise<void> {
+    await this.request(`/projects/${projectId}/documents/${documentId}`, { method: 'DELETE' });
+  }
+
+  // Milestone endpoints
+  async listMilestones(projectId: string): Promise<{ data: ProjectMilestone[] }> {
+    return this.request(`/projects/${projectId}/milestones`);
+  }
+
+  async createMilestone(projectId: string, data: CreateMilestoneInput): Promise<ProjectMilestone> {
+    return this.request<ProjectMilestone>(`/projects/${projectId}/milestones`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateMilestone(projectId: string, milestoneId: string, data: Partial<ProjectMilestone>): Promise<ProjectMilestone> {
+    return this.request<ProjectMilestone>(`/projects/${projectId}/milestones/${milestoneId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteMilestone(projectId: string, milestoneId: string): Promise<void> {
+    await this.request(`/projects/${projectId}/milestones/${milestoneId}`, { method: 'DELETE' });
+  }
+
+  async reorderMilestones(projectId: string, milestoneIds: string[]): Promise<{ data: ProjectMilestone[] }> {
+    return this.request(`/projects/${projectId}/milestones/reorder`, {
+      method: 'POST',
+      body: JSON.stringify({ milestoneIds }),
+    });
+  }
+
+  // Metrics endpoints
+  async getProjectMetrics(projectId: string, params?: { startDate?: string; endDate?: string }): Promise<ProjectMetrics> {
+    const searchParams = new URLSearchParams();
+    if (params?.startDate) searchParams.set('startDate', params.startDate);
+    if (params?.endDate) searchParams.set('endDate', params.endDate);
+    const query = searchParams.toString();
+    return this.request<ProjectMetrics>(`/projects/${projectId}/metrics${query ? `?${query}` : ''}`);
+  }
+
+  async listTimeEntries(projectId: string, params?: { startDate?: string; endDate?: string; page?: number; limit?: number }): Promise<PaginatedResponse<TimeEntry>> {
+    const searchParams = new URLSearchParams();
+    if (params?.startDate) searchParams.set('startDate', params.startDate);
+    if (params?.endDate) searchParams.set('endDate', params.endDate);
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    const query = searchParams.toString();
+    return this.request<PaginatedResponse<TimeEntry>>(`/projects/${projectId}/metrics/time-entries${query ? `?${query}` : ''}`);
+  }
+
+  async createTimeEntry(projectId: string, data: CreateTimeEntryInput): Promise<TimeEntry> {
+    return this.request<TimeEntry>(`/projects/${projectId}/metrics/time-entries`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Search endpoint
+  async search(query: string, params?: { types?: string; page?: number; limit?: number }): Promise<SearchResponse> {
+    const searchParams = new URLSearchParams();
+    searchParams.set('q', query);
+    if (params?.types) searchParams.set('types', params.types);
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    return this.request(`/search?${searchParams.toString()}`);
+  }
+
+  // Calendar endpoints
+  async getCalendarEvents(start: string, end: string, projectId?: string): Promise<{ data: CalendarEvent[] }> {
+    const searchParams = new URLSearchParams();
+    searchParams.set('start', start);
+    searchParams.set('end', end);
+    if (projectId) searchParams.set('projectId', projectId);
+    return this.request(`/calendar/events?${searchParams.toString()}`);
+  }
+
+  // Recording endpoints
+  async listRecordings(sessionId: string): Promise<{ data: Recording[] }> {
+    return this.request(`/sessions/${sessionId}/recordings`);
+  }
+
+  async getTranscript(sessionId: string, format: 'json' | 'text' | 'vtt' | 'srt' = 'json'): Promise<{ data: SessionTranscript[] } | string> {
+    return this.request(`/sessions/${sessionId}/recordings/transcript?format=${format}`);
   }
 }
 

@@ -22,7 +22,19 @@ const io = new SocketIOServer(httpServer, {
   transports: ['websocket', 'polling'],
 });
 
-// Security middleware
+// Security middleware with CSP configured for Swagger UI
+app.use('/api/docs', helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'"],
+    },
+  },
+}));
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -59,7 +71,8 @@ app.get('/', (_req, res) => {
     name: 'AutoMade API',
     version: process.env.npm_package_version || '0.1.0',
     status: 'running',
-    docs: '/api/health',
+    docs: '/api/docs',
+    health: '/api/health',
   });
 });
 
