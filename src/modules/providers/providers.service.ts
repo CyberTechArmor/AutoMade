@@ -564,3 +564,204 @@ export async function logProviderUsage(
     })
     .where(eq(schema.serviceProviders.id, providerId));
 }
+
+/**
+ * Get provider usage statistics
+ */
+export async function getProviderUsage(
+  providerId: string,
+  options: {
+    startDate?: Date;
+    endDate?: Date;
+  } = {}
+): Promise<{
+  totalRequests: number;
+  successfulRequests: number;
+  failedRequests: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCost: number;
+  averageLatencyMs: number;
+  usageByDay: Array<{
+    date: string;
+    requests: number;
+    tokens: number;
+    cost: number;
+  }>;
+  usageByModel: Array<{
+    model: string;
+    requests: number;
+    tokens: number;
+  }>;
+}> {
+  const conditions = [eq(schema.providerUsageLogs.providerId, providerId)];
+
+  if (options.startDate) {
+    conditions.push(sql`${schema.providerUsageLogs.createdAt} >= ${options.startDate}`);
+  }
+  if (options.endDate) {
+    conditions.push(sql`${schema.providerUsageLogs.createdAt} <= ${options.endDate}`);
+  }
+
+  const logs = await db
+    .select()
+    .from(schema.providerUsageLogs)
+    .where(and(...conditions))
+    .orderBy(desc(schema.providerUsageLogs.createdAt));
+
+  const totalRequests = logs.length;
+  const successfulRequests = logs.filter(l => l.success).length;
+  const failedRequests = totalRequests - successfulRequests;
+  const totalInputTokens = logs.reduce((sum, l) => sum + (l.inputTokens || 0), 0);
+  const totalOutputTokens = logs.reduce((sum, l) => sum + (l.outputTokens || 0), 0);
+  const totalCost = logs.reduce((sum, l) => sum + parseFloat(l.cost || '0'), 0);
+  const totalLatency = logs.reduce((sum, l) => sum + (l.durationMs || 0), 0);
+  const averageLatencyMs = totalRequests > 0 ? Math.round(totalLatency / totalRequests) : 0;
+
+  // Group by day
+  const byDay = logs.reduce((acc, log) => {
+    const date = log.createdAt.toISOString().split('T')[0]!;
+    if (!acc[date]) {
+      acc[date] = { requests: 0, tokens: 0, cost: 0 };
+    }
+    acc[date].requests++;
+    acc[date].tokens += (log.inputTokens || 0) + (log.outputTokens || 0);
+    acc[date].cost += parseFloat(log.cost || '0');
+    return acc;
+  }, {} as Record<string, { requests: number; tokens: number; cost: number }>);
+
+  const usageByDay = Object.entries(byDay)
+    .map(([date, data]) => ({ date, ...data }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // Group by model
+  const byModel = logs.reduce((acc, log) => {
+    const model = log.model || 'unknown';
+    if (!acc[model]) {
+      acc[model] = { requests: 0, tokens: 0 };
+    }
+    acc[model].requests++;
+    acc[model].tokens += (log.inputTokens || 0) + (log.outputTokens || 0);
+    return acc;
+  }, {} as Record<string, { requests: number; tokens: number }>);
+
+  const usageByModel = Object.entries(byModel)
+    .map(([model, data]) => ({ model, ...data }))
+    .sort((a, b) => b.requests - a.requests);
+
+  return {
+    totalRequests,
+    successfulRequests,
+    failedRequests,
+    totalInputTokens,
+    totalOutputTokens,
+    totalCost,
+    averageLatencyMs,
+    usageByDay,
+    usageByModel,
+  };
+}
+
+/**
+ * Rotate provider API key
+ */
+export async function rotateProviderKey(
+  id: string,
+  newCredentials: Record<string, string>,
+  userId: string,
+  ip?: string,
+  requestId?: string
+): Promise<PublicProvider> {
+  const existing = await db
+    .select()
+    .from(schema.serviceProviders)
+    .where(and(eq(schema.serviceProviders.id, id), isNull(schema.serviceProviders.deletedAt)))
+    .limit(1)
+    .then(rows => rows[0]);
+
+  if (!existing) {
+    throw new NotFoundError('Service provider');
+  }
+
+  // Validate new credentials
+  const validation = validateCredentials(existing.type, existing.service, newCredentials);
+  if (!validation.valid) {
+    throw new ValidationError(validation.errors?.join(', ') || 'Invalid credentials');
+  }
+
+  // Encrypt new credentials
+  const encryptedCredentials: Record<string, string> = {};
+  for (const [key, value] of Object.entries(newCredentials)) {
+    encryptedCredentials[key] = encrypt(value);
+  }
+
+  const [updated] = await db
+    .update(schema.serviceProviders)
+    .set({
+      credentials: encryptedCredentials,
+      updatedAt: new Date(),
+      updatedBy: userId,
+    })
+    .where(eq(schema.serviceProviders.id, id))
+    .returning();
+
+  if (!updated) {
+    throw new Error('Failed to rotate provider key');
+  }
+
+  await audit.update(
+    userId,
+    'service_provider',
+    id,
+    { action: 'key_rotation', oldCredentials: '[REDACTED]' },
+    { action: 'key_rotation', newCredentials: '[REDACTED]' },
+    ip,
+    requestId
+  );
+
+  logger.info({ providerId: id }, 'Provider API key rotated');
+
+  return toPublicProvider(updated);
+}
+
+/**
+ * Get aggregated usage for all providers
+ */
+export async function getAllProvidersUsage(
+  options: {
+    startDate?: Date;
+    endDate?: Date;
+  } = {}
+): Promise<Array<{
+  providerId: string;
+  providerName: string;
+  type: string;
+  service: string;
+  totalRequests: number;
+  successfulRequests: number;
+  totalTokens: number;
+  totalCost: number;
+}>> {
+  const conditions = [isNull(schema.serviceProviders.deletedAt)];
+
+  const providers = await db
+    .select()
+    .from(schema.serviceProviders)
+    .where(and(...conditions));
+
+  const usagePromises = providers.map(async (provider) => {
+    const usage = await getProviderUsage(provider.id, options);
+    return {
+      providerId: provider.id,
+      providerName: provider.name,
+      type: provider.type,
+      service: provider.service,
+      totalRequests: usage.totalRequests,
+      successfulRequests: usage.successfulRequests,
+      totalTokens: usage.totalInputTokens + usage.totalOutputTokens,
+      totalCost: usage.totalCost,
+    };
+  });
+
+  return Promise.all(usagePromises);
+}

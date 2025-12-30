@@ -4,6 +4,8 @@ import clientRoutes from '../modules/clients/clients.routes.js';
 import projectRoutes from '../modules/projects/projects.routes.js';
 import sessionRoutes from '../modules/sessions/sessions.routes.js';
 import providerRoutes from '../modules/providers/providers.routes.js';
+import searchRoutes from '../modules/search/search.routes.js';
+import calendarRoutes from '../modules/calendar/calendar.routes.js';
 import docsRoutes from './docs.routes.js';
 
 const router = Router();
@@ -26,5 +28,7 @@ router.use('/clients', clientRoutes);
 router.use('/projects', projectRoutes);
 router.use('/sessions', sessionRoutes);
 router.use('/providers', providerRoutes);
+router.use('/search', searchRoutes);
+router.use('/calendar', calendarRoutes);
 
 export default router;

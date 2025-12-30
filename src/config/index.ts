@@ -78,6 +78,11 @@ export const config = {
     region: optionalEnv('S3_REGION', 'garage'),
   },
 
+  storage: {
+    provider: optionalEnv('STORAGE_PROVIDER', 'local') as 'local' | 's3',
+    localPath: optionalEnv('STORAGE_LOCAL_PATH', './data'),
+  },
+
   logging: {
     level: optionalEnv('LOG_LEVEL', 'info'),
   },

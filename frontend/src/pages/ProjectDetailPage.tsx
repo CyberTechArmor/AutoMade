@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Layout from '../components/Layout';
+import DocumentsList from '../components/documents/DocumentsList';
+import ProjectMetrics from '../components/metrics/ProjectMetrics';
 import { api } from '../services/api';
 import type { Project, Client, ProjectMilestone, Session, ProjectStage, UpdateProjectInput } from '../types';
 
@@ -31,7 +33,7 @@ export default function ProjectDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'milestones' | 'sessions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'milestones' | 'metrics' | 'sessions'>('overview');
   const [editForm, setEditForm] = useState<UpdateProjectInput>({});
 
   useEffect(() => {
@@ -202,7 +204,7 @@ export default function ProjectDetailPage() {
         {/* Tabs */}
         <div className="border-b border-gray-200">
           <nav className="flex gap-8">
-            {(['overview', 'milestones', 'sessions'] as const).map((tab) => (
+            {(['overview', 'documents', 'milestones', 'metrics', 'sessions'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -422,6 +424,12 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
+        {activeTab === 'documents' && (
+          <div className="card">
+            <DocumentsList projectId={project.id} />
+          </div>
+        )}
+
         {activeTab === 'milestones' && (
           <div className="card">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Milestones</h2>
@@ -456,6 +464,10 @@ export default function ProjectDetailPage() {
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === 'metrics' && (
+          <ProjectMetrics projectId={project.id} />
         )}
 
         {activeTab === 'sessions' && (

@@ -142,6 +142,13 @@ export interface ProjectMilestone {
   updatedAt: string;
 }
 
+export interface CreateMilestoneInput {
+  name: string;
+  description?: string;
+  targetDate?: string;
+  sortOrder?: number;
+}
+
 export interface CreateProjectInput {
   clientId: string;
   name: string;
@@ -270,4 +277,289 @@ export interface SessionMessageResponse {
   role: 'assistant';
   content: string;
   transcript: SessionTranscript;
+}
+
+// Document types
+export type DocumentType = 'proposal' | 'contract' | 'specification' | 'report' | 'notes' | 'other';
+export type DocumentState = 'draft' | 'review' | 'approved' | 'published' | 'archived';
+
+export interface DocumentVersion {
+  id: string;
+  documentId: string;
+  version: number;
+  content: string;
+  authorId: string;
+  changeReason?: string | null;
+  comments?: DocumentComment[];
+  createdAt: string;
+}
+
+export interface DocumentComment {
+  id: string;
+  authorId: string;
+  authorName: string;
+  content: string;
+  timestamp: string;
+}
+
+export interface DocumentAttachment {
+  id: string;
+  documentId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  storageUrl: string;
+  uploadedBy: string;
+  createdAt: string;
+}
+
+export interface Document {
+  id: string;
+  projectId: string;
+  title: string;
+  type: DocumentType;
+  description?: string | null;
+  clientVisible: boolean;
+  state: DocumentState;
+  currentVersion: number;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentWithVersions {
+  document: Document;
+  versions: DocumentVersion[];
+  attachments: DocumentAttachment[];
+}
+
+export interface CreateDocumentInput {
+  title: string;
+  type: DocumentType;
+  description?: string;
+  content: string;
+  clientVisible?: boolean;
+  tags?: string[];
+}
+
+export interface UpdateDocumentInput {
+  title?: string;
+  type?: DocumentType;
+  description?: string | null;
+  clientVisible?: boolean;
+  state?: DocumentState;
+  tags?: string[];
+}
+
+export interface CreateVersionInput {
+  content: string;
+  changeReason?: string;
+}
+
+// Metrics types
+export interface TimeEntry {
+  id: string;
+  projectId: string;
+  userId: string;
+  entryDate: string;
+  hours: string;
+  description?: string | null;
+  milestoneId?: string | null;
+  billable: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CostEntry {
+  id: string;
+  projectId: string;
+  source: 'manual' | 'twilio' | 'elevenlabs' | 'anthropic' | 'openai' | 'google' | 'livekit' | 'other';
+  description: string;
+  amountCents: number;
+  currency: string;
+  incurredAt: string;
+  sessionId?: string | null;
+  externalId?: string | null;
+  breakdown?: {
+    items?: Array<{
+      name: string;
+      quantity: number;
+      unitPrice: number;
+      total: number;
+    }>;
+  };
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ProjectMetrics {
+  totalHours: number;
+  billableHours: number;
+  totalCost: number;
+  costBreakdown: {
+    source: string;
+    amount: number;
+    percentage: number;
+  }[];
+  hoursOverTime: {
+    date: string;
+    hours: number;
+  }[];
+  milestoneProgress: {
+    total: number;
+    completed: number;
+    progress: number;
+  };
+  estimatedVsActual: {
+    estimatedHours: number | null;
+    actualHours: number;
+    estimatedCost: number | null;
+    actualCost: number;
+  };
+}
+
+export interface CreateTimeEntryInput {
+  entryDate: string;
+  hours: string;
+  description?: string;
+  milestoneId?: string;
+  billable?: boolean;
+}
+
+export interface CreateCostEntryInput {
+  source: CostEntry['source'];
+  description: string;
+  amountCents: number;
+  currency?: string;
+  incurredAt: string;
+  sessionId?: string;
+  externalId?: string;
+  breakdown?: CostEntry['breakdown'];
+  metadata?: Record<string, unknown>;
+}
+
+// Calendar types
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  description?: string | null;
+  start: string;
+  end?: string | null;
+  allDay: boolean;
+  type: 'session' | 'milestone' | 'deadline' | 'meeting' | 'other';
+  projectId?: string | null;
+  sessionId?: string | null;
+  milestoneId?: string | null;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEventInput {
+  title: string;
+  description?: string;
+  start: string;
+  end?: string;
+  allDay?: boolean;
+  type: CalendarEvent['type'];
+  projectId?: string;
+  sessionId?: string;
+  milestoneId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+// Search types
+export interface SearchResult {
+  id: string;
+  type: 'client' | 'project' | 'session' | 'document';
+  title: string;
+  description: string | null;
+  url: string;
+  highlight?: string;
+  metadata?: Record<string, unknown>;
+  updatedAt: string;
+}
+
+export interface SearchResponse {
+  data: SearchResult[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+// Recording types
+export interface Recording {
+  id: string;
+  sessionId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  durationMs?: number | null;
+  startedAt: string;
+  endedAt?: string | null;
+  storageUrl: string;
+  transcriptUrl?: string | null;
+  status: 'recording' | 'processing' | 'ready' | 'error';
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface RecordingWithTranscript {
+  recording: Recording;
+  transcript?: {
+    entries: Array<{
+      speakerId: string;
+      speakerName?: string;
+      content: string;
+      startMs: number;
+      endMs: number;
+    }>;
+  };
+}
+
+// Provider types
+export interface Provider {
+  id: string;
+  name: string;
+  type: 'llm' | 'voice' | 'transcription' | 'storage' | 'webrtc' | 'sms' | 'email';
+  service: string;
+  enabled: boolean;
+  isPrimary: boolean;
+  priority: number;
+  config?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProviderUsage {
+  provider: Provider;
+  usage: {
+    totalRequests: number;
+    totalCostCents: number;
+    lastUsed?: string;
+  };
+}
+
+export interface CreateProviderInput {
+  name: string;
+  type: Provider['type'];
+  service: string;
+  enabled?: boolean;
+  isPrimary?: boolean;
+  priority?: number;
+  credentials: Record<string, string>;
+  config?: Record<string, unknown>;
+}
+
+export interface UpdateProviderInput {
+  name?: string;
+  enabled?: boolean;
+  isPrimary?: boolean;
+  priority?: number;
+  credentials?: Record<string, string>;
+  config?: Record<string, unknown>;
 }

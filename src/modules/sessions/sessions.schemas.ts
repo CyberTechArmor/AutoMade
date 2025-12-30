@@ -91,3 +91,15 @@ export const sessionMessageSchema = z.object({
 });
 
 export type SessionMessageInput = z.infer<typeof sessionMessageSchema>;
+
+export const generateTokenSchema = z.object({
+  params: z.object({
+    id: z.string().uuid(),
+  }),
+  body: z.object({
+    canPublish: z.boolean().optional().default(true),
+    canSubscribe: z.boolean().optional().default(true),
+  }),
+});
+
+export type GenerateTokenInput = z.infer<typeof generateTokenSchema>;

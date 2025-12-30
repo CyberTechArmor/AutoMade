@@ -7,8 +7,18 @@ import {
   getProjectSchema,
 } from './projects.schemas.js';
 import * as projectService from './projects.service.js';
+import documentRoutes from '../documents/documents.routes.js';
+import milestoneRoutes from '../milestones/milestones.routes.js';
+import metricsRoutes from '../metrics/metrics.routes.js';
 
 const router = Router();
+
+// Nest documents routes under projects
+router.use('/:projectId/documents', documentRoutes);
+// Nest milestones routes under projects
+router.use('/:projectId/milestones', milestoneRoutes);
+// Nest metrics routes under projects
+router.use('/:projectId/metrics', metricsRoutes);
 
 /**
  * GET /projects
