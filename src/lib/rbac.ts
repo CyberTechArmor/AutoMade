@@ -74,6 +74,10 @@ export const PERMISSIONS = {
 export type Permission = keyof typeof PERMISSIONS;
 
 export function hasPermission(role: Role, permission: Permission): boolean {
+  // Super admin always has permission
+  if (role === ROLES.SUPER_ADMIN) {
+    return true;
+  }
   const allowedRoles = PERMISSIONS[permission];
   return allowedRoles?.includes(role as never) ?? false;
 }
