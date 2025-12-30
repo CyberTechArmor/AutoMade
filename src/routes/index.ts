@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import authRoutes from '../modules/auth/auth.routes.js';
+import clientRoutes from '../modules/clients/clients.routes.js';
 import projectRoutes from '../modules/projects/projects.routes.js';
 import sessionRoutes from '../modules/sessions/sessions.routes.js';
 import providerRoutes from '../modules/providers/providers.routes.js';
@@ -17,6 +18,7 @@ router.get('/health', (_req, res) => {
 
 // API routes
 router.use('/auth', authRoutes);
+router.use('/clients', clientRoutes);
 router.use('/projects', projectRoutes);
 router.use('/sessions', sessionRoutes);
 router.use('/providers', providerRoutes);

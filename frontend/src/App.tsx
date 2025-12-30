@@ -8,6 +8,12 @@ import DashboardPage from './pages/DashboardPage';
 import SecuritySettingsPage from './pages/SecuritySettingsPage';
 import MfaSetupPage from './pages/MfaSetupPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
+import ClientsPage from './pages/ClientsPage';
+import ClientDetailPage from './pages/ClientDetailPage';
+import ProjectsPage from './pages/ProjectsPage';
+import ProjectDetailPage from './pages/ProjectDetailPage';
+import SessionsPage from './pages/SessionsPage';
+import SessionDetailPage from './pages/SessionDetailPage';
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, mfaPending } = useAuth();
@@ -92,6 +98,62 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+
+      {/* Clients */}
+      <Route
+        path="/clients"
+        element={
+          <ProtectedRoute>
+            <ClientsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/clients/:id"
+        element={
+          <ProtectedRoute>
+            <ClientDetailPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Projects */}
+      <Route
+        path="/projects"
+        element={
+          <ProtectedRoute>
+            <ProjectsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:id"
+        element={
+          <ProtectedRoute>
+            <ProjectDetailPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Sessions */}
+      <Route
+        path="/sessions"
+        element={
+          <ProtectedRoute>
+            <SessionsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/sessions/:id"
+        element={
+          <ProtectedRoute>
+            <SessionDetailPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Settings */}
       <Route
         path="/settings/security"
         element={
